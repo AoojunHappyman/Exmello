@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-plus-jakarta: 'Plus Jakarta Sans', 'Noto Sans Thai', sans-serif;
+    --font-inter: 'Inter', 'Noto Sans Thai', sans-serif;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #F8F7F2;
+    color: #101E19;
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-family: var(--font-inter);
+    background-color: #F8F7F2;
+    color: #101E19;
+    overflow-x: hidden;
+  }
+
+  /* Accessible focus states */
+  *:focus-visible {
+    outline: 2px solid #2F5D50;
+    outline-offset: 2px;
+  }
+
+  /* Custom selection */
+  ::selection {
+    background-color: #C3E8D1;
+    color: #154539;
+  }
+}
+
+/* Reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F4F1EA;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C9DFD3;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #A8C7B5;
+}
