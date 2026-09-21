@@ -18,7 +18,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export default function RootLayout({
@@ -39,7 +38,7 @@ export default function RootLayout({
       <body className="bg-surface text-text-primary antialiased min-h-screen flex flex-col font-body">
         <Navbar />
         <main className="w-full pt-20 flex-grow">{children}</main>
-        <Footer />
+        <div className="pb-20 lg:pb-0"><Footer /></div>
         <BottomNav />
       </body>
     </html>

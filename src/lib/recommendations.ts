@@ -5,6 +5,58 @@ export function getRecommendation(
   concern: ConcernType,
   need?: NeedType
 ): RecommendationResult {
+  // An explicitly selected need takes precedence over inferred mood/concern rules.
+  if (need) {
+    const explicitNeedRecommendations: Record<NeedType, RecommendationResult> = {
+      focus: {
+        id: 'need-focus',
+        headline: 'เริ่มจากก้าวเล็ก ๆ ที่ทำได้ตอนนี้ 🌱',
+        message: 'เลือกทำเพียงหนึ่งเรื่อง แล้วค่อย ๆ ให้เวลากับมัน โดยไม่ต้องรีบจัดการทุกอย่างพร้อมกัน',
+        primaryAction: { type: 'focus', label: 'เริ่มโฟกัส 25 นาที →', path: '/focus?duration=25', durationMinutes: 25 },
+        secondaryActions: [
+          { type: 'reset', label: 'ขอพักสั้น ๆ ก่อน', path: '/reset' },
+          { type: 'breathing', label: 'ฝึกหายใจ', path: '/breathing?mode=box' },
+        ],
+        badge: 'ตามสิ่งที่คุณต้องการ: โฟกัส',
+      },
+      calm: {
+        id: 'need-calm',
+        headline: 'พักสักครู่ แล้วค่อยกลับมา 🌿',
+        message: 'ลองผ่อนลมหายใจช้า ๆ ให้ตัวเองได้ตั้งหลักก่อน เรื่องอื่นค่อยคิดทีละอย่าง',
+        primaryAction: { type: 'breathing', label: 'เริ่มฝึกหายใจ →', path: '/breathing?mode=box', durationMinutes: 3, mode: 'box' },
+        secondaryActions: [
+          { type: 'reset', label: 'ลองรีเซ็ตสั้น ๆ', path: '/reset' },
+          { type: 'resource', label: 'อ่านคู่มือคลายกังวล', path: '/resources/managing-exam-anxiety' },
+        ],
+        badge: 'ตามสิ่งที่คุณต้องการ: ใจสงบ',
+      },
+      break: {
+        id: 'need-break',
+        headline: 'พักได้โดยไม่ต้องรู้สึกผิด ☕',
+        message: 'ลุกจากโต๊ะ จิบน้ำ หรือพักสายตาสักครู่ การหยุดพักก็เป็นส่วนหนึ่งของการดูแลตัวเอง',
+        primaryAction: { type: 'reset', label: 'ไปที่ศูนย์รีเซ็ตตัวเอง →', path: '/reset', durationMinutes: 5 },
+        secondaryActions: [
+          { type: 'breathing', label: 'ฝึกหายใจเบา ๆ', path: '/breathing?mode=sigh' },
+          { type: 'focus', label: 'กลับมาโฟกัสภายหลัง', path: '/focus?duration=15' },
+        ],
+        badge: 'ตามสิ่งที่คุณต้องการ: พัก',
+      },
+      motivated: {
+        id: 'need-motivated',
+        headline: 'เริ่มแค่ 10 นาทีก็พอแล้ว ✨',
+        message: 'เลือกงานชิ้นเล็กที่สุดแล้วลองเริ่มก่อน เมื่อครบเวลา คุณเลือกได้ว่าจะทำต่อหรือพัก',
+        primaryAction: { type: 'focus', label: 'เริ่มโฟกัส 10 นาที →', path: '/focus?duration=10', durationMinutes: 10 },
+        secondaryActions: [
+          { type: 'reset', label: 'ยืดเส้นสั้น ๆ', path: '/reset' },
+          { type: 'resource', label: 'อ่านวิธีเริ่มเมื่อสมองตัน', path: '/resources/blank-page-paralysis' },
+        ],
+        badge: 'ตามสิ่งที่คุณต้องการ: แรงเริ่มต้น',
+      },
+    };
+
+    return explicitNeedRecommendations[need];
+  }
+
   // R-01: Overwhelmed
   if (mood === 'overwhelmed') {
     return {

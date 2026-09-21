@@ -150,9 +150,17 @@ export const Footer: React.FC = () => {
         </div>
 
         {/* Copyright and Badge */}
-        <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-text-muted">
-          <p>© 2025 EXMELLO Inc. สร้างขึ้นด้วยความอบอุ่นเพื่อใจที่สงบ</p>
-          <div className="flex items-center gap-3">
+        <div className="pt-6 grid grid-cols-1 sm:grid-cols-3 items-center gap-4 text-xs text-text-muted">
+          <p className="text-center sm:text-left">© 2025 EXMELLO Inc. สร้างขึ้นด้วยความอบอุ่นเพื่อใจที่สงบ</p>
+          <a
+            href="https://aoojunhappyman.github.io/My-Profile/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-center hover:text-primary transition-colors"
+          >
+            Developed by Pattanachai Sawetbunchoed
+          </a>
+          <div className="flex items-center justify-center sm:justify-end gap-3">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container text-primary font-medium">
               <span>🌱</span>
               <span>เทคโนโลยีเพื่อจิตใจนักศึกษา</span>

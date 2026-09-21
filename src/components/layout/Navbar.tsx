@@ -102,6 +102,8 @@ export const Navbar: React.FC = () => {
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="เปิดเมนูบนมือถือ"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-navigation-menu"
             className="lg:hidden w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-text-primary ml-1"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -111,7 +113,7 @@ export const Navbar: React.FC = () => {
 
       {/* Mobile dropdown menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-surface-lowest border-b border-stone-200 px-6 py-5 shadow-lg animate-in slide-in-from-top-2">
+        <div id="mobile-navigation-menu" className="lg:hidden bg-surface-lowest border-b border-stone-200 px-6 py-5 shadow-lg animate-in slide-in-from-top-2">
           <div className="flex flex-col gap-2">
             {navLinks.map((link) => (
               <Link

@@ -10,9 +10,9 @@ export const BottomNav: React.FC = () => {
 
   const navItems = [
     { label: 'หน้าแรก', href: '/', icon: Home },
-    { label: 'Focus', href: '/focus', icon: Timer },
-    { label: 'Breathing', href: '/breathing', icon: Wind },
-    { label: 'Resources', href: '/resources', icon: BookOpen },
+    { label: 'โฟกัส', href: '/focus', icon: Timer },
+    { label: 'หายใจ', href: '/breathing', icon: Wind },
+    { label: 'แหล่งข้อมูล', href: '/resources', icon: BookOpen },
     { label: 'โปรไฟล์', href: '/profile', icon: User },
   ];
 
@@ -33,6 +33,7 @@ export const BottomNav: React.FC = () => {
             <Link
               key={item.label}
               href={item.href}
+              aria-current={isActive ? 'page' : undefined}
               className={`flex flex-col items-center justify-center min-w-[56px] min-h-[48px] px-2 rounded-2xl transition-all duration-200 ${
                 isActive
                   ? 'text-primary font-semibold'
