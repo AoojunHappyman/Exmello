@@ -124,3 +124,9 @@ npm start
 ## 8. License
 
 MIT License. Designed with warmth for calm minds.
+
+---
+
+## 9. Backend
+
+The `backend/` directory contains a FastAPI + SQLAlchemy API backed by PostgreSQL. See [backend setup and API](backend/README.md) and [architecture and schema](backend/ARCHITECTURE.md). Its authenticated check-ins, rule based recommendations, focus sessions, resources, and dashboard are implemented independently of the current guest-first frontend. The frontend has not yet been wired to these endpoints and continues to use local browser data.
