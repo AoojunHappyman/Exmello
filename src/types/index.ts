@@ -61,7 +61,7 @@ export interface CheckInRecord {
   id: string;
   timestamp: number;
   mood: MoodType;
-  concern: ConcernType;
+  concerns: ConcernType[];
   need?: NeedType;
 }
 

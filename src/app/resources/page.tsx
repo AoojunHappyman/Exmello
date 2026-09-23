@@ -1,14 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Search, BookOpen } from 'lucide-react';
-import { MOCK_RESOURCES } from '@/lib/mock-data';
+import { getResources, readableApiError } from '@/lib/api';
+import { ResourceArticle } from '@/types';
 import { ResourceCard } from '@/components/cards/ResourceCard';
 
 export default function ResourcesPage() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [resources, setResources] = useState<ResourceArticle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    getResources().then(setResources).catch((cause) => setError(readableApiError(cause))).finally(() => setLoading(false));
+  }, []);
 
   const categories = [
     { id: 'all', label: 'ทั้งหมด' },
@@ -18,7 +26,7 @@ export default function ResourcesPage() {
     { id: 'lifestyle', label: 'วันสอบจริง' },
   ];
 
-  const filteredArticles = MOCK_RESOURCES.filter((article) => {
+  const filteredArticles = resources.filter((article) => {
     const matchesCategory =
       activeCategory === 'all' || article.category === activeCategory;
     const matchesSearch =
@@ -77,7 +85,7 @@ export default function ResourcesPage() {
       </div>
 
       {/* Articles Grid */}
-      {filteredArticles.length > 0 ? (
+      {loading ? <p className="text-sm text-text-secondary">กำลังโหลดบทความ...</p> : error ? <p role="alert" className="text-sm text-red-700">{error}</p> : filteredArticles.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {filteredArticles.map((article) => (
             <ResourceCard key={article.id} article={article} />

@@ -6,16 +6,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Check, Sparkles } from 'lucide-react';
 import { MOOD_OPTIONS, CONCERN_OPTIONS, NEED_OPTIONS } from '@/lib/mock-data';
 import { MoodType, ConcernType, NeedType } from '@/types';
-import { saveCheckIn } from '@/lib/storage';
+import { submitCheckin } from '@/lib/checkin';
+import { readableApiError } from '@/lib/api';
 
 export default function CheckinPage() {
   const router = useRouter();
 
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [selectedMood, setSelectedMood] = useState<MoodType | null>(null);
-  const [selectedConcern, setSelectedConcern] = useState<ConcernType | null>(null);
+  const [selectedConcerns, setSelectedConcerns] = useState<ConcernType[]>([]);
   const [selectedNeed, setSelectedNeed] = useState<NeedType | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [showConcernLimit, setShowConcernLimit] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState('');
 
   const handleSelectMood = (mood: MoodType) => {
     setSelectedMood(mood);
@@ -25,32 +28,37 @@ export default function CheckinPage() {
     }, 280);
   };
 
-  const handleSelectConcern = (concern: ConcernType) => {
-    setSelectedConcern(concern);
+  const handleToggleConcern = (concern: ConcernType) => {
+    if (selectedConcerns.includes(concern)) {
+      setSelectedConcerns(selectedConcerns.filter((item) => item !== concern));
+      setShowConcernLimit(false);
+      return;
+    }
+
+    if (selectedConcerns.length >= 3) {
+      setShowConcernLimit(true);
+      return;
+    }
+
+    setSelectedConcerns([...selectedConcerns, concern]);
+    setShowConcernLimit(false);
   };
 
   const handleSelectNeed = (need: NeedType) => {
     setSelectedNeed(need);
   };
 
-  const handleFinish = (overrideNeed?: NeedType) => {
-    if (!selectedMood || !selectedConcern) return;
+  const handleFinish = async (overrideNeed?: NeedType | null) => {
+    if (!selectedMood || selectedConcerns.length === 0) return;
     setIsSubmitting(true);
-
-    const needToSave = overrideNeed !== undefined ? overrideNeed : selectedNeed;
-    saveCheckIn(selectedMood, selectedConcern, needToSave);
-
-    const query = new URLSearchParams({
-      mood: selectedMood,
-      concern: selectedConcern,
-    });
-    if (needToSave) {
-      query.set('need', needToSave);
+    setSubmitError('');
+    try {
+      const path = await submitCheckin(selectedMood, selectedConcerns, overrideNeed === null ? undefined : overrideNeed ?? selectedNeed);
+      router.push(path);
+    } catch (error) {
+      setSubmitError(readableApiError(error));
+      setIsSubmitting(false);
     }
-
-    setTimeout(() => {
-      router.push(`/recommendation?${query.toString()}`);
-    }, 400);
   };
 
   return (
@@ -160,21 +168,27 @@ export default function CheckinPage() {
                   ขั้นตอน 02
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-bold text-primary font-display mt-1">
-                  ตอนนี้มีอะไรที่กวนใจคุณอยู่?
+                  ตอนนี้มีอะไรที่กวนใจคุณอยู่บ้าง?
                 </h2>
-                <p className="text-xs sm:text-sm text-text-secondary mt-1">
-                  เลือกสิ่งที่รู้สึกว่าเป็นอุปสรรคต่อการอ่านหนังสือมากที่สุดในตอนนี้
+                <p id="concern-selection-help" className="text-xs sm:text-sm text-text-secondary mt-1">
+                  เลือกสิ่งที่กวนใจคุณได้สูงสุด 3 ข้อ
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+              <div
+                className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2"
+                role="group"
+                aria-label="เลือกสิ่งที่กวนใจ"
+                aria-describedby="concern-selection-help concern-selection-status"
+              >
                 {CONCERN_OPTIONS.map((concern) => {
-                  const isSelected = selectedConcern === concern.id;
+                  const isSelected = selectedConcerns.includes(concern.id);
                   return (
                     <button
                       key={concern.id}
                       type="button"
-                      onClick={() => handleSelectConcern(concern.id)}
+                      onClick={() => handleToggleConcern(concern.id)}
+                      aria-pressed={isSelected}
                       className={`flex items-center gap-3 p-3.5 rounded-2xl text-left border transition-all ${
                         isSelected
                           ? 'bg-primary-container text-white border-primary shadow-sm font-semibold'
@@ -191,6 +205,16 @@ export default function CheckinPage() {
                 })}
               </div>
 
+              <div
+                id="concern-selection-status"
+                aria-live="polite"
+                className={`text-xs ${showConcernLimit ? 'text-[#A63737] font-semibold' : 'text-text-muted'}`}
+              >
+                {showConcernLimit
+                  ? 'เลือกได้สูงสุด 3 ข้อ ลองยกเลิกข้อหนึ่งก่อนนะ'
+                  : `เลือกแล้ว ${selectedConcerns.length} จาก 3 ข้อ`}
+              </div>
+
               {/* Navigation Controls */}
               <div className="pt-6 border-t border-stone-100 flex items-center justify-between">
                 <button
@@ -204,7 +228,7 @@ export default function CheckinPage() {
 
                 <button
                   type="button"
-                  disabled={!selectedConcern}
+                  disabled={selectedConcerns.length === 0}
                   onClick={() => setCurrentStep(3)}
                   className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary-container text-white text-xs sm:text-sm font-semibold hover:bg-primary shadow-sm active:translate-y-0.5 disabled:opacity-40 disabled:pointer-events-none transition-all"
                 >
@@ -267,6 +291,7 @@ export default function CheckinPage() {
               </div>
 
               {/* Action Buttons */}
+              {submitError && <p role="alert" className="text-sm text-red-700">{submitError}</p>}
               <div className="pt-6 border-t border-stone-100 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <button
                   type="button"
@@ -280,7 +305,7 @@ export default function CheckinPage() {
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <button
                     type="button"
-                    onClick={() => handleFinish(undefined)}
+                    onClick={() => handleFinish(null)}
                     disabled={isSubmitting}
                     className="flex-1 sm:flex-none px-4 py-3 rounded-full bg-surface-container text-text-primary text-xs sm:text-sm font-semibold hover:bg-surface-container-high transition-colors"
                   >

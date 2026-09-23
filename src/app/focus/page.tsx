@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,12 +18,14 @@ import {
 } from 'lucide-react';
 import { playGentleChime } from '@/lib/sound';
 import { saveActivitySession } from '@/lib/storage';
+import { ApiFocusSession, createFocusSession, getAuthSession, readableApiError, updateFocusSession } from '@/lib/api';
 
 function FocusContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const initialMinutes = Number(searchParams.get('duration')) || 25;
+  const requestedMinutes = Number(searchParams.get('duration')) || 25;
+  const initialMinutes = Math.max(1, Math.min(180, Math.floor(requestedMinutes)));
   const [targetMinutes, setTargetMinutes] = useState<number>(initialMinutes);
   const [totalSeconds, setTotalSeconds] = useState<number>(initialMinutes * 60);
   const [secondsRemaining, setSecondsRemaining] = useState<number>(initialMinutes * 60);
@@ -32,11 +34,25 @@ function FocusContent() {
   const [isDistractionFree, setIsDistractionFree] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
+  const [sessionError, setSessionError] = useState('');
+  const [pending, setPending] = useState(false);
+  const serverSession = useRef<ApiFocusSession | null>(null);
 
-  const handleSelectDuration = (mins: number) => {
+  const cancelCurrent = async () => {
+    if (!serverSession.current) return;
+    await updateFocusSession(serverSession.current.id, 'cancelled');
+    serverSession.current = null;
+  };
+
+  const handleSelectDuration = async (mins: number) => {
     if (isRunning) {
       if (!confirm('การเปลี่ยนระยะเวลาจะรีเซ็ตเซสชันปัจจุบัน ต้องการดำเนินการต่อหรือไม่?')) return;
     }
+    setIsRunning(false);
+    setPending(true);
+    try { await cancelCurrent(); } catch (error) { setSessionError(readableApiError(error)); setPending(false); return; }
+    setSessionError('');
+    setPending(false);
     setTargetMinutes(mins);
     setTotalSeconds(mins * 60);
     setSecondsRemaining(mins * 60);
@@ -52,24 +68,27 @@ function FocusContent() {
       }, 1000);
     } else if (secondsRemaining === 0 && isRunning) {
       setIsRunning(false);
-      setIsCompleted(true);
-
-      if (soundEnabled) {
-        playGentleChime();
-      }
-
-      try {
-        confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.7 },
-          colors: ['#2F5D50', '#A8C7B5', '#F2C6A0', '#6C8F7B'],
-        });
-      } catch (e) {
-        // ignore
-      }
-
-      saveActivitySession(targetMinutes, 'focus', true, `โฟกัส ${targetMinutes} นาที`);
+      const finish = async () => {
+        setPending(true);
+        try {
+          if (serverSession.current) {
+            const elapsed = Date.now() - Date.parse(serverSession.current.started_at);
+            const wait = Math.max(0, targetMinutes * 60000 - elapsed + 1000);
+            if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+            await updateFocusSession(serverSession.current.id, 'completed');
+            serverSession.current = null;
+          } else if (!getAuthSession()) {
+            saveActivitySession(targetMinutes, 'focus', true, `โฟกัส ${targetMinutes} นาที`);
+          } else {
+            throw new Error('Missing focus session');
+          }
+          setIsCompleted(true);
+          if (soundEnabled) playGentleChime();
+          try { confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 }, colors: ['#2F5D50', '#A8C7B5', '#F2C6A0', '#6C8F7B'] }); } catch { /* animation unavailable */ }
+        } catch (error) { setSessionError(readableApiError(error)); }
+        finally { setPending(false); }
+      };
+      void finish();
     }
 
     return () => {
@@ -77,22 +96,40 @@ function FocusContent() {
     };
   }, [isRunning, secondsRemaining, soundEnabled, targetMinutes]);
 
-  const toggleRunning = () => {
-    setIsRunning(!isRunning);
+  const toggleRunning = async () => {
+    if (isRunning) { setIsRunning(false); return; }
+    if (isCompleted || pending) return;
+    setPending(true);
+    setSessionError('');
+    try {
+      if (getAuthSession() && !serverSession.current) serverSession.current = await createFocusSession(targetMinutes);
+      setIsRunning(true);
+    } catch (error) { setSessionError(readableApiError(error)); }
+    finally { setPending(false); }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
+    setIsRunning(false);
+    setPending(true);
+    try { await cancelCurrent(); } catch (error) { setSessionError(readableApiError(error)); setPending(false); return; }
+    setPending(false);
+    setSessionError('');
     setIsRunning(false);
     setSecondsRemaining(totalSeconds);
     setIsCompleted(false);
   };
 
   const handleExit = () => {
-    if (isRunning && secondsRemaining < totalSeconds - 10) {
+    if (serverSession.current || (isRunning && secondsRemaining < totalSeconds - 10)) {
       setShowExitConfirm(true);
     } else {
       router.push('/');
     }
+  };
+
+  const confirmExit = async () => {
+    setPending(true);
+    try { await cancelCurrent(); router.push('/'); } catch (error) { setSessionError(readableApiError(error)); setShowExitConfirm(false); setPending(false); }
   };
 
   const formatTime = (secs: number) => {
@@ -206,10 +243,12 @@ function FocusContent() {
         </div>
 
         {/* Action Controls */}
+        {sessionError && <p role="alert" className="text-sm text-red-700">{sessionError}</p>}
         <div className="flex items-center gap-4 mt-6">
           <button
             type="button"
             onClick={toggleRunning}
+            disabled={pending || isCompleted}
             aria-label={isRunning ? 'พักชั่วคราว' : 'เริ่มโฟกัส'}
             className="flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-primary-container text-white text-base font-semibold hover:bg-primary shadow-soft active:translate-y-0.5 transition-all"
           >
@@ -229,6 +268,7 @@ function FocusContent() {
           <button
             type="button"
             onClick={handleReset}
+            disabled={pending}
             aria-label="รีเซ็ตเวลา"
             className="w-12 h-12 rounded-full bg-surface-lowest hover:bg-surface-container border border-stone-200/70 text-text-secondary flex items-center justify-center shadow-sm transition-colors"
           >
@@ -319,7 +359,8 @@ function FocusContent() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => router.push('/')}
+                  onClick={confirmExit}
+                  disabled={pending}
                   className="flex-1 py-2.5 rounded-full bg-primary-container text-white text-xs font-semibold hover:bg-primary"
                 >
                   ออกจากโฟกัส

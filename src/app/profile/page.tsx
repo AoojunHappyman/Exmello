@@ -20,15 +20,21 @@ import {
   getActivitySessions,
 } from '@/lib/storage';
 import { UserPreferences } from '@/types';
+import { AuthSession, clearAuthSession, deleteAccount, getAuthSession, getCheckins, getFocusSessions, onAuthChange, readableApiError } from '@/lib/api';
 
 export default function ProfilePage() {
   const [prefs, setPrefs] = useState<UserPreferences>(getUserPreferences());
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [showPurgeModal, setShowPurgeModal] = useState<boolean>(false);
   const [purgeSuccess, setPurgeSuccess] = useState<boolean>(false);
+  const [account, setAccount] = useState<AuthSession | null>(null);
+  const [accountError, setAccountError] = useState('');
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
     setPrefs(getUserPreferences());
+    setAccount(getAuthSession());
+    return onAuthChange(() => setAccount(getAuthSession()));
   }, []);
 
   const handleUpdate = (updates: Partial<UserPreferences>) => {
@@ -38,12 +44,18 @@ export default function ProfilePage() {
     setTimeout(() => setSaveSuccess(false), 2000);
   };
 
-  const handleExportData = () => {
+  const handleExportData = async () => {
+    setAccountError('');
+    let checkIns;
+    let sessions;
+    try {
+      [checkIns, sessions] = account ? await Promise.all([getCheckins(100), getFocusSessions(100)]) : [getCheckInHistory(), getActivitySessions()];
+    } catch (error) { setAccountError(readableApiError(error)); return; }
     const data = {
       exportedAt: new Date().toISOString(),
       preferences: prefs,
-      checkIns: getCheckInHistory(),
-      sessions: getActivitySessions(),
+      checkIns,
+      sessions,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -54,12 +66,18 @@ export default function ProfilePage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleConfirmPurge = () => {
+  const handleConfirmPurge = async () => {
+    setPending(true);
+    setAccountError('');
+    try {
+      if (account) { await deleteAccount(); clearAuthSession(); }
+    } catch (error) { setAccountError(readableApiError(error)); setPending(false); setShowPurgeModal(false); return; }
     purgeAllData();
     setShowPurgeModal(false);
     setPurgeSuccess(true);
     setPrefs(getUserPreferences());
     setTimeout(() => setPurgeSuccess(false), 3000);
+    setPending(false);
   };
 
   return (
@@ -73,14 +91,14 @@ export default function ProfilePage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-bold text-primary font-display">
-                {prefs.displayName}
+                {account?.user.full_name || prefs.displayName}
               </h1>
               <span className="px-2.5 py-0.5 rounded-full bg-secondary-container text-primary text-[11px] font-semibold">
-                โหมดทั่วไป (Guest Mode)
+                {account ? 'บัญชีผู้ใช้' : 'โหมดทั่วไป (Guest Mode)'}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-text-secondary mt-0.5">
-              ไม่มีการสอดแนมข้อมูล • บันทึก 100% ในเบราว์เซอร์ของคุณ
+              {account ? account.user.email : 'บันทึกข้อมูลไว้ในเบราว์เซอร์ของคุณ'}
             </p>
           </div>
         </div>
@@ -91,11 +109,12 @@ export default function ProfilePage() {
             <span>บันทึกการตั้งค่าเรียบร้อยแล้ว</span>
           </div>
         )}
+        {accountError && <p role="alert" className="text-sm text-red-700">{accountError}</p>}
 
         {purgeSuccess && (
           <div className="p-3.5 rounded-2xl bg-[#FFEAE8] text-[#A63737] text-xs font-semibold flex items-center gap-2 animate-in fade-in">
             <Trash2 className="w-4 h-4" />
-            <span>ลบข้อมูลประวัติทั้งหมดออกจากเบราว์เซอร์นี้เรียบร้อยแล้ว</span>
+            <span>{account ? 'ลบข้อมูลในเบราว์เซอร์เรียบร้อยแล้ว' : 'ลบข้อมูลประวัติทั้งหมดออกจากเบราว์เซอร์นี้เรียบร้อยแล้ว'}</span>
           </div>
         )}
 
@@ -182,15 +201,15 @@ export default function ProfilePage() {
                 สถานะบัญชีผู้ใช้
               </h3>
               <p className="text-xs text-text-secondary mt-0.5">
-                ขณะนี้คุณกำลังใช้งานในโหมดทั่วไป ข้อมูลจะถูกบันทึกเฉพาะในเครื่องนี้ หากต้องการเข้าถึงจากอุปกรณ์อื่น สามารถสร้างบัญชีได้ฟรี
+                {account ? 'เช็กอินและเวลาโฟกัสของบัญชีบันทึกบนเซิร์ฟเวอร์ การตั้งค่าอุปกรณ์ยังบันทึกในเบราว์เซอร์นี้' : 'ขณะนี้คุณกำลังใช้งานในโหมดทั่วไป ข้อมูลจะถูกบันทึกเฉพาะในเครื่องนี้ หากต้องการเข้าถึงจากอุปกรณ์อื่น สามารถสร้างบัญชีได้ฟรี'}
               </p>
             </div>
-            <Link
+            {account ? <button type="button" onClick={() => clearAuthSession()} className="px-4 py-2 rounded-full bg-surface-container text-xs font-semibold text-primary whitespace-nowrap">ออกจากระบบ</button> : <Link
               href="/login"
               className="px-4 py-2 rounded-full bg-surface-container hover:bg-surface-container-high text-xs font-semibold text-primary transition-colors whitespace-nowrap"
             >
               เข้าสู่ระบบ / สมัครสมาชิก
-            </Link>
+            </Link>}
           </div>
         </div>
 
@@ -201,7 +220,7 @@ export default function ProfilePage() {
             <h3 className="text-base font-bold font-display">ความเป็นส่วนตัวและการจัดการข้อมูล</h3>
           </div>
           <p className="text-xs text-text-secondary leading-relaxed">
-            EXMELLO ปฏิบัติตามหลักการไม่เก็บข้อมูลสุขภาพที่ละเอียดอ่อน คุณมีสิทธิ์ดาวน์โหลดหรือลบข้อมูลทั้งหมดที่บันทึกไว้ในเบราว์เซอร์นี้ได้ตลอดเวลา
+            {account ? 'คุณสามารถดาวน์โหลดเช็กอินและเวลาโฟกัสของบัญชี หรือลบบัญชีพร้อมข้อมูลบนเซิร์ฟเวอร์ได้' : 'คุณสามารถดาวน์โหลดหรือลบข้อมูลที่บันทึกไว้ในเบราว์เซอร์นี้ได้ตลอดเวลา'}
           </p>
 
           <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
@@ -211,7 +230,7 @@ export default function ProfilePage() {
               className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-surface-container hover:bg-surface-container-high text-text-primary text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
             >
               <Download className="w-4 h-4" />
-              <span>ส่งออกข้อมูลของฉัน (JSON)</span>
+              <span>{account ? 'ส่งออกข้อมูลล่าสุด (JSON)' : 'ส่งออกข้อมูลของฉัน (JSON)'}</span>
             </button>
 
             <button
@@ -220,7 +239,7 @@ export default function ProfilePage() {
               className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-[#FFEAE8] hover:bg-[#FFD4D0] text-[#A63737] text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
-              <span>ลบข้อมูลทั้งหมด & รีเซ็ต</span>
+              <span>{account ? 'ลบบัญชีและข้อมูลทั้งหมด' : 'ลบข้อมูลทั้งหมด & รีเซ็ต'}</span>
             </button>
           </div>
         </div>
@@ -234,10 +253,10 @@ export default function ProfilePage() {
               <AlertTriangle className="w-6 h-6" />
             </div>
             <h4 className="text-lg font-bold text-primary font-display">
-              ต้องการลบข้อมูลทั้งหมดในเครื่องนี้หรือไม่?
+              {account ? 'ต้องการลบบัญชีและข้อมูลทั้งหมดหรือไม่?' : 'ต้องการลบข้อมูลทั้งหมดในเครื่องนี้หรือไม่?'}
             </h4>
             <p className="text-xs text-text-secondary leading-relaxed">
-              การกระทำนี้จะลบประวัติการเช็กอินและเวลาโฟกัสสะสมออกจากเบราว์เซอร์นี้ถาวร และไม่สามารถกู้คืนได้
+              {account ? 'การกระทำนี้จะลบบัญชี ประวัติเช็กอิน และเวลาโฟกัสบนเซิร์ฟเวอร์อย่างถาวร รวมถึงข้อมูลในเบราว์เซอร์นี้' : 'การกระทำนี้จะลบประวัติการเช็กอินและเวลาโฟกัสสะสมออกจากเบราว์เซอร์นี้ถาวร และไม่สามารถกู้คืนได้'}
             </p>
             <div className="flex gap-2 pt-2">
               <button
@@ -250,6 +269,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={handleConfirmPurge}
+                disabled={pending}
                 className="flex-1 py-2.5 rounded-full bg-[#A63737] text-white text-xs font-semibold hover:bg-red-800"
               >
                 ยืนยันลบข้อมูลทั้งหมด

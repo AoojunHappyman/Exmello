@@ -69,7 +69,7 @@ The resource response uses the current frontend article keys (`categoryLabel`, `
 
 ## Run with the existing frontend
 
-Start the backend on port 8000 and run `npm run dev` in the repository root for Next.js on port 3000. The frontend code was not changed in this task: its guest check-ins, timer history, recommendations and articles still use local data. The new API is ready for a future account integration, but the current UI does not send requests to it. Guest activity is therefore not synchronized to PostgreSQL.
+Start the backend on port 8000 and run `npm run dev` in the repository root for Next.js on port 3000. The frontend uses `NEXT_PUBLIC_API_BASE_URL` from the root `.env.local` (default: `http://127.0.0.1:8000`). Published resources always come from the API. Signed-in check-ins, recommendations, focus sessions, and dashboard data use the API and PostgreSQL. Guest check-ins and activity remain in browser storage and are not automatically uploaded when someone signs in. Breathing and reset activities remain browser-only because the API currently tracks focus sessions only.
 
 ## Tests
 

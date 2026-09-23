@@ -44,7 +44,7 @@ Within seconds, a deterministic recommendation engine provides supportive copy a
 - **Quick Reset Hub (`/reset`):** 60-second eye rest (20-20-20 rule timer), water & posture check, 2-minute seated desk stretches, and a private **Mental Brain Dump** with burn/release animation.
 - **Evidence-Based Guides (`/resources` & `/resources/[id]`):** Micro-guides written with educational psychologists on exam anxiety, sleep consolidation, and blank page paralysis.
 - **Non-Judgmental Dashboard (`/dashboard`):** Tracks completed Mindful Study Minutes without guilt streaks or red warning badges.
-- **Data Privacy & GDPR Settings (`/profile`):** Local-first storage, one-click JSON data export, and complete data purge.
+- **Data Controls (`/profile`):** Guest browser storage and account data export or deletion.
 - **Crisis & Campus Helplines (`/help`):** Immediate 24/7 student hotlines and clear non-clinical boundaries.
 
 ---
@@ -81,7 +81,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Run the PostgreSQL-backed API using the steps in [backend/README.md](backend/README.md), then open [http://localhost:3000](http://localhost:3000). The frontend defaults to `http://127.0.0.1:8000`; copy `.env.example` to `.env.local` to change `NEXT_PUBLIC_API_BASE_URL`. Public articles require the API. With an account, check-ins, recommendations, and focus sessions are saved in PostgreSQL. Guest data remains in this browser and is not uploaded on sign-in.
 
 ### Production Build
 
@@ -107,8 +107,8 @@ npm start
 | `/dashboard` | Lightweight Mindful Study Minutes & Activity History |
 | `/profile` | User Preferences & Data Portability |
 | `/help` | 24/7 Crisis Helplines & University Mental Health Directory |
-| `/login` | Student Sign In Placeholder (with Guest Bypass) |
-| `/register` | Student Sign Up Placeholder |
+| `/login` | Student sign in (with guest bypass) |
+| `/register` | Student account registration |
 
 ---
 
@@ -116,8 +116,8 @@ npm start
 
 - **WCAG 2.1 AA Compliant:** High-contrast text on warm alabaster (`#F8F7F2`), minimum 48px touch targets, and accessible ARIA attributes.
 - **Zero Health Surveillance:** EXMELLO does not collect medical labels, student grades, or university IDs.
-- **Guest-First Architecture:** All core features work locally in `localStorage` without forced registration.
-- **Right to Erasure:** Full client-side data purge available in `/profile`.
+- **Guest-First Architecture:** Check-ins and focus tools work without registration; articles require the public API.
+- **Data Deletion:** Guests can clear browser data; signed-in users can delete their account and owned server data in `/profile`.
 
 ---
 

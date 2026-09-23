@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -20,7 +20,9 @@ import {
   ShieldAlert,
   ArrowUpRight,
 } from 'lucide-react';
-import { MOCK_RESOURCES } from '@/lib/mock-data';
+import { ConcernType, MoodType, ResourceArticle } from '@/types';
+import { submitCheckin } from '@/lib/checkin';
+import { ApiFocusSession, createFocusSession, getAuthSession, getResources, readableApiError, updateFocusSession } from '@/lib/api';
 import { ResourceCard } from '@/components/cards/ResourceCard';
 import { playGentleChime } from '@/lib/sound';
 
@@ -31,6 +33,7 @@ export default function HomePage() {
   const [selectedMood, setSelectedMood] = useState<string>('เครียด');
   const [selectedTags, setSelectedTags] = useState<string[]>(['เวลาใกล้หมดแล้ว']);
   const [isUpdatingRec, setIsUpdatingRec] = useState<boolean>(false);
+  const [checkinError, setCheckinError] = useState('');
 
   const moodOptions = [
     { label: 'ดีมาก', emoji: '😄', id: 'great' },
@@ -52,29 +55,36 @@ export default function HomePage() {
   const toggleTag = (label: string) => {
     if (selectedTags.includes(label)) {
       setSelectedTags(selectedTags.filter((t) => t !== label));
+      setCheckinError('');
     } else {
+      if (selectedTags.length >= 3) { setCheckinError('เลือกได้สูงสุด 3 ข้อ'); return; }
       setSelectedTags([...selectedTags, label]);
+      setCheckinError('');
     }
   };
 
-  const handleMockupSubmit = () => {
+  const handleMockupSubmit = async () => {
     setIsUpdatingRec(true);
-    setTimeout(() => {
-      setIsUpdatingRec(false);
+    setCheckinError('');
+    try {
       const moodObj = moodOptions.find((m) => m.label === selectedMood);
-      const tagObj = problemTags.find((t) => selectedTags.includes(t.label));
-
-      const moodParam = moodObj ? moodObj.id : 'stressed';
-      const concernParam = tagObj ? tagObj.id : 'cant_finish';
-
-      router.push(`/recommendation?mood=${moodParam}&concern=${concernParam}`);
-    }, 500);
+      const concerns = problemTags.filter((tag) => selectedTags.includes(tag.label)).map((tag) => tag.id as ConcernType);
+      if (!concerns.length) { setCheckinError('เลือกสิ่งที่กวนใจอย่างน้อย 1 ข้อ'); setIsUpdatingRec(false); return; }
+      const path = await submitCheckin((moodObj?.id || 'stressed') as MoodType, concerns);
+      router.push(path);
+    } catch (error) {
+      setCheckinError(readableApiError(error));
+      setIsUpdatingRec(false);
+    }
   };
 
   // 2. Mini Focus Timer Widget State
   const initialSeconds = 25 * 60;
   const [timeLeft, setTimeLeft] = useState<number>(initialSeconds);
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
+  const [timerPending, setTimerPending] = useState(false);
+  const [timerError, setTimerError] = useState('');
+  const timerSession = useRef<ApiFocusSession | null>(null);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
@@ -84,18 +94,48 @@ export default function HomePage() {
       }, 1000);
     } else if (timeLeft === 0 && isTimerRunning) {
       setIsTimerRunning(false);
-      playGentleChime();
+      const finish = async () => {
+        setTimerPending(true);
+        try {
+          if (timerSession.current) {
+            const elapsed = Date.now() - Date.parse(timerSession.current.started_at);
+            const wait = Math.max(0, initialSeconds * 1000 - elapsed + 1000);
+            if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+            await updateFocusSession(timerSession.current.id, 'completed');
+            timerSession.current = null;
+          }
+          playGentleChime();
+        } catch (error) { setTimerError(readableApiError(error)); }
+        finally { setTimerPending(false); }
+      };
+      void finish();
     }
     return () => {
       if (interval) clearInterval(interval);
     };
   }, [isTimerRunning, timeLeft]);
 
-  const toggleTimer = () => {
-    setIsTimerRunning(!isTimerRunning);
+  const toggleTimer = async () => {
+    if (isTimerRunning) { setIsTimerRunning(false); return; }
+    if (timerPending || timeLeft === 0) return;
+    setTimerPending(true);
+    setTimerError('');
+    try {
+      if (getAuthSession() && !timerSession.current) timerSession.current = await createFocusSession(25);
+      setIsTimerRunning(true);
+    } catch (error) { setTimerError(readableApiError(error)); }
+    finally { setTimerPending(false); }
   };
 
-  const resetTimer = () => {
+  const resetTimer = async () => {
+    setIsTimerRunning(false);
+    setTimerPending(true);
+    try {
+      if (timerSession.current) await updateFocusSession(timerSession.current.id, 'cancelled');
+      timerSession.current = null;
+      setTimerError('');
+    } catch (error) { setTimerError(readableApiError(error)); setTimerPending(false); return; }
+    setTimerPending(false);
     setIsTimerRunning(false);
     setTimeLeft(initialSeconds);
   };
@@ -127,10 +167,15 @@ export default function HomePage() {
 
   // 4. Resources Filter Tab State
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [resources, setResources] = useState<ResourceArticle[]>([]);
+  const [resourceError, setResourceError] = useState('');
+  useEffect(() => {
+    getResources().then(setResources).catch((error) => setResourceError(readableApiError(error)));
+  }, []);
   const filteredArticles =
     activeCategory === 'all'
-      ? MOCK_RESOURCES.slice(0, 3)
-      : MOCK_RESOURCES.filter((r) => r.category === activeCategory).slice(0, 3);
+      ? resources.slice(0, 3)
+      : resources.filter((r) => r.category === activeCategory).slice(0, 3);
 
   return (
     <div className="flex flex-col w-full">
@@ -149,8 +194,8 @@ export default function HomePage() {
 
             {/* Big Warm Headline */}
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-[54px] font-bold text-primary tracking-tight font-display leading-[1.2]">
-              คุณไม่ได้ต้องผ่าน
-              <br className="hidden sm:inline" /> ช่วงสอบนี้คนเดียว
+              เราจะผ่าน
+              <br className="hidden sm:inline" /> ช่วงสอบไปด้วยกัน
             </h1>
 
             {/* Caring Description */}
@@ -214,7 +259,7 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/* 2. CORE FEATURE CARDS (5 Bento Cards)                        */}
       {/* ============================================================ */}
-      <section className="w-full max-w-[1240px] mx-auto px-4 md:px-8 py-12" id="core-features">
+      <section className="w-full max-w-[1240px] mx-auto px-4 md:px-8 py-12 scroll-mt-20" id="core-features">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Card 1: Quick Check */}
           <Link
@@ -336,7 +381,7 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/* 3. HOW IT WORKS SECTION (4 Steps with Connectors)            */}
       {/* ============================================================ */}
-      <section className="w-full bg-[#EAF6F0]/70 py-16 my-8 border-y border-stone-200/60" id="how-it-works">
+      <section className="w-full bg-[#EAF6F0]/70 py-16 my-8 border-y border-stone-200/60 scroll-mt-20" id="how-it-works">
         <div className="max-w-[1240px] mx-auto px-4 md:px-8">
           <div className="text-center max-w-xl mx-auto mb-12">
             <span className="inline-block px-4 py-1 rounded-full bg-surface-lowest text-text-secondary text-xs font-semibold mb-2 shadow-sm">
@@ -423,7 +468,7 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/* 4. INTERACTIVE TOOLS & PRODUCT SHOWCASE (Bento Grid)        */}
       {/* ============================================================ */}
-      <section className="w-full max-w-[1240px] mx-auto px-4 md:px-8 py-16" id="interactive-suite">
+      <section className="w-full max-w-[1240px] mx-auto px-4 md:px-8 py-16 scroll-mt-20" id="interactive-suite">
         {/* Section Header with Doodle Note */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
           <div className="max-w-xl">
@@ -527,6 +572,7 @@ export default function HomePage() {
 
             {/* Submit Recommendation Button */}
             <div className="pt-6">
+              {checkinError && <p role="alert" className="mb-2 text-xs text-red-700">{checkinError}</p>}
               <button
                 type="button"
                 onClick={handleMockupSubmit}
@@ -631,10 +677,12 @@ export default function HomePage() {
                 </div>
 
                 {/* Action Controls */}
+                {timerError && <p role="alert" className="text-xs text-red-700">{timerError}</p>}
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={toggleTimer}
+                    disabled={timerPending || timeLeft === 0}
                     aria-label={isTimerRunning ? 'พักชั่วคราว' : 'เริ่มโฟกัส'}
                     className="w-10 h-10 rounded-full bg-primary-container text-white flex items-center justify-center hover:bg-primary transition-colors shadow-sm"
                   >
@@ -643,6 +691,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={resetTimer}
+                    disabled={timerPending}
                     aria-label="รีเซ็ตเวลา"
                     className="w-9 h-9 rounded-full bg-surface-container text-text-secondary flex items-center justify-center hover:bg-surface-container-high transition-colors"
                   >
@@ -763,6 +812,7 @@ export default function HomePage() {
         </div>
 
         {/* 3 Editorial Article Cards */}
+        {resourceError && <p role="alert" className="mb-4 text-sm text-red-700">{resourceError}</p>}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {filteredArticles.map((article) => (
             <ResourceCard key={article.id} article={article} />

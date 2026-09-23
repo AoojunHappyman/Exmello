@@ -17,17 +17,35 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   theme: 'light',
 };
 
+type StoredCheckInRecord = Omit<CheckInRecord, 'concerns'> & {
+  concerns?: ConcernType[];
+  concern?: ConcernType;
+};
+
 // Safe window check for Next.js SSR
 function isClient(): boolean {
   return typeof window !== 'undefined';
 }
 
-export function saveCheckIn(mood: MoodType, concern: ConcernType, need?: NeedType): CheckInRecord {
+function normalizeCheckIn(record: StoredCheckInRecord): CheckInRecord | null {
+  const concerns = Array.isArray(record.concerns)
+    ? record.concerns.slice(0, 3)
+    : record.concern
+      ? [record.concern]
+      : [];
+
+  if (concerns.length === 0) return null;
+
+  const { concern: _legacyConcern, ...rest } = record;
+  return { ...rest, concerns };
+}
+
+export function saveCheckIn(mood: MoodType, concerns: ConcernType[], need?: NeedType): CheckInRecord {
   const record: CheckInRecord = {
     id: `chk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     timestamp: Date.now(),
     mood,
-    concern,
+    concerns: concerns.slice(0, 3),
     need,
   };
 
@@ -49,7 +67,7 @@ export function getLastCheckIn(): CheckInRecord | null {
   if (!isClient()) return null;
   try {
     const data = localStorage.getItem(STORAGE_KEYS.LAST_CHECKIN);
-    return data ? JSON.parse(data) : null;
+    return data ? normalizeCheckIn(JSON.parse(data) as StoredCheckInRecord) : null;
   } catch {
     return null;
   }
@@ -59,7 +77,11 @@ export function getCheckInHistory(): CheckInRecord[] {
   if (!isClient()) return [];
   try {
     const data = localStorage.getItem(STORAGE_KEYS.CHECKINS);
-    return data ? JSON.parse(data) : [];
+    if (!data) return [];
+
+    return (JSON.parse(data) as StoredCheckInRecord[])
+      .map(normalizeCheckIn)
+      .filter((record): record is CheckInRecord => record !== null);
   } catch {
     return [];
   }

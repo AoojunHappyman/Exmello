@@ -1,8 +1,20 @@
 import { MoodType, ConcernType, NeedType, RecommendationResult } from '@/types';
 
+// Preserve the existing rule order when several concerns are selected.
+// "Other" intentionally falls through to the mood-based recommendation.
+const CONCERN_PRIORITY: ConcernType[] = [
+  'running_out_of_time',
+  'cant_finish',
+  'worried_exam',
+  'didnt_sleep',
+  'exhausted',
+  'racing_thoughts',
+  'cant_remember',
+];
+
 export function getRecommendation(
   mood: MoodType,
-  concern: ConcernType,
+  concerns: ConcernType[],
   need?: NeedType
 ): RecommendationResult {
   // An explicitly selected need takes precedence over inferred mood/concern rules.
@@ -57,8 +69,10 @@ export function getRecommendation(
     return explicitNeedRecommendations[need];
   }
 
+  const primaryConcern = CONCERN_PRIORITY.find((concern) => concerns.includes(concern));
+
   // R-01: Overwhelmed
-  if (mood === 'overwhelmed') {
+  if (mood === 'overwhelmed' && !primaryConcern) {
     return {
       id: 'r-01',
       headline: 'มาหยุดพักโลกไว้สักสามนาทีก่อน 🌱',
@@ -84,8 +98,8 @@ export function getRecommendation(
     };
   }
 
-  // R-02: Stressed + Running out of time
-  if (mood === 'stressed' && concern === 'running_out_of_time') {
+  // R-02: Running out of time
+  if (primaryConcern === 'running_out_of_time') {
     return {
       id: 'r-02',
       headline: 'ความลนลานขโมยเวลา แต่สมาธิจะดึงเวลากลับมา ⏳',
@@ -110,8 +124,8 @@ export function getRecommendation(
     };
   }
 
-  // R-03: Stressed + Can't finish studying
-  if (mood === 'stressed' && concern === 'cant_finish') {
+  // R-03: Can't finish studying
+  if (primaryConcern === 'cant_finish' && mood !== 'good' && mood !== 'great') {
     return {
       id: 'r-03',
       headline: 'เราเริ่มจากเรื่องเล็ก ๆ ก่อนก็ได้ 🌱',
@@ -137,8 +151,8 @@ export function getRecommendation(
     };
   }
 
-  // R-04: Stressed + Worried about exam
-  if (mood === 'stressed' && concern === 'worried_exam') {
+  // R-04: Worried about exam
+  if (primaryConcern === 'worried_exam') {
     return {
       id: 'r-04',
       headline: 'ใจคุณพร้อมแล้วนะ มาช่วยให้ชีพจรเต้นช้าลงกัน 💛',
@@ -165,7 +179,7 @@ export function getRecommendation(
   }
 
   // R-05: Didn't sleep enough
-  if (concern === 'didnt_sleep') {
+  if (primaryConcern === 'didnt_sleep') {
     return {
       id: 'r-05',
       headline: 'สมองที่ล้าเกินไปจะจำเนื้อหาไม่เข้า 😴',
@@ -191,7 +205,7 @@ export function getRecommendation(
   }
 
   // R-06: Feeling exhausted
-  if (concern === 'exhausted') {
+  if (primaryConcern === 'exhausted') {
     return {
       id: 'r-06',
       headline: 'การฝืนอ่านต่อตอนนี้อาจได้ผลน้อยลงแล้ว ☕',
@@ -217,7 +231,7 @@ export function getRecommendation(
   }
 
   // R-07: Racing thoughts
-  if (concern === 'racing_thoughts') {
+  if (primaryConcern === 'racing_thoughts') {
     return {
       id: 'r-07',
       headline: 'ดึงความคิดกลับมาอยู่กับห้องนี้กัน 🍃',
@@ -244,7 +258,7 @@ export function getRecommendation(
   }
 
   // R-08: Can't remember
-  if (concern === 'cant_remember') {
+  if (primaryConcern === 'cant_remember') {
     return {
       id: 'r-08',
       headline: 'ฮอร์โมนความเครียดกำลังบดบังความจำอยู่ 🧠',
@@ -270,7 +284,7 @@ export function getRecommendation(
   }
 
   // R-09: Good / Great mood
-  if ((mood === 'good' || mood === 'great') && (concern === 'cant_finish' || need === 'focus')) {
+  if ((mood === 'good' || mood === 'great') && primaryConcern === 'cant_finish') {
     return {
       id: 'r-09',
       headline: 'วันนี้พลังงานของคุณดีมากเลย 🚀',
@@ -295,8 +309,8 @@ export function getRecommendation(
     };
   }
 
-  // R-10: Need motivation
-  if (need === 'motivated' || mood === 'okay') {
+  // R-10: Okay mood / gentle motivation
+  if (mood === 'okay') {
     return {
       id: 'r-10',
       headline: 'การเริ่มต้นคือก้าวที่ยากที่สุด 🌱',

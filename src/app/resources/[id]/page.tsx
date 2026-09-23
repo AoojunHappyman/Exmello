@@ -2,7 +2,9 @@ import React from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Clock, CheckCircle2, ArrowRight } from 'lucide-react';
-import { MOCK_RESOURCES } from '@/lib/mock-data';
+import { ApiError, getResource, getResources } from '@/lib/api';
+
+export const dynamic = 'force-dynamic';
 
 interface ResourceDetailPageProps {
   params: {
@@ -10,20 +12,15 @@ interface ResourceDetailPageProps {
   };
 }
 
-export function generateStaticParams() {
-  return MOCK_RESOURCES.map((article) => ({
-    id: article.id,
-  }));
-}
-
-export default function ResourceDetailPage({ params }: ResourceDetailPageProps) {
-  const article = MOCK_RESOURCES.find((r) => r.id === params.id);
-
-  if (!article) {
-    notFound();
+export default async function ResourceDetailPage({ params }: ResourceDetailPageProps) {
+  let article;
+  try {
+    article = await getResource(params.id);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) notFound();
+    throw error;
   }
-
-  const relatedArticles = MOCK_RESOURCES.filter((r) => r.id !== article.id).slice(0, 2);
+  const relatedArticles = (await getResources()).filter((r) => r.id !== article.id).slice(0, 2);
 
   return (
     <div className="max-w-[1240px] mx-auto px-4 md:px-8 py-10">

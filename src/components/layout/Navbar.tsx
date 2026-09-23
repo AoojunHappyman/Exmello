@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { User, Menu, X, ArrowRight } from 'lucide-react';
+import { User, Menu, X } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const pathname = usePathname();
@@ -72,23 +72,6 @@ export const Navbar: React.FC = () => {
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Quick Check-in link */}
-          <Link
-            href="/checkin"
-            className="hidden sm:inline-flex items-center px-4 py-2 rounded-full text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-surface-container transition-colors"
-          >
-            เช็กอิน
-          </Link>
-
-          {/* Primary CTA */}
-          <Link
-            href="/checkin"
-            className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full bg-primary-container text-white text-xs font-semibold hover:bg-primary shadow-sm active:translate-y-0.5 transition-all"
-          >
-            <span>เริ่มต้นใช้งาน</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-
           {/* Profile / Account button */}
           <Link
             href="/profile"

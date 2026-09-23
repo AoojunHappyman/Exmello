@@ -18,16 +18,38 @@ import {
 } from '@/lib/storage';
 import { FocusSessionRecord, CheckInRecord } from '@/types';
 import { MOOD_OPTIONS, CONCERN_OPTIONS } from '@/lib/mock-data';
+import { getAuthSession, getDashboard, getFocusSessions, onAuthChange, readableApiError } from '@/lib/api';
 
 export default function DashboardPage() {
   const [sessions, setSessions] = useState<FocusSessionRecord[]>([]);
   const [mindfulMinutes, setMindfulMinutes] = useState<number>(0);
   const [lastCheckIn, setLastCheckIn] = useState<CheckInRecord | null>(null);
+  const [signedIn, setSignedIn] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    setSessions(getActivitySessions());
-    setMindfulMinutes(getTotalMindfulMinutes());
-    setLastCheckIn(getLastCheckIn());
+    let active = true;
+    const load = () => {
+      const account = getAuthSession();
+      setSignedIn(Boolean(account));
+      setLoadError('');
+      if (!account) {
+        setSessions(getActivitySessions());
+        setMindfulMinutes(getTotalMindfulMinutes());
+        setLastCheckIn(getLastCheckIn());
+        return;
+      }
+      Promise.all([getDashboard(), getFocusSessions()]).then(([dashboard, focus]) => {
+        if (!active) return;
+        setMindfulMinutes(dashboard.completed_focus_minutes);
+        const checkin = dashboard.recent_checkin;
+        setLastCheckIn(checkin ? { id: checkin.id, timestamp: Date.parse(checkin.created_at), mood: checkin.mood, concerns: checkin.concerns, need: checkin.needs[0] } : null);
+        setSessions(focus.filter((item) => item.status === 'completed').map((item) => ({ id: item.id, timestamp: Date.parse(item.completed_at || item.started_at), durationMinutes: item.duration_minutes, completed: true, type: 'focus' as const, label: `โฟกัส ${item.duration_minutes} นาที` })));
+      }).catch((error) => { if (active) setLoadError(readableApiError(error)); });
+    };
+    load();
+    const unsubscribe = onAuthChange(load);
+    return () => { active = false; unsubscribe(); };
   }, []);
 
   const getGreeting = () => {
@@ -38,7 +60,9 @@ export default function DashboardPage() {
   };
 
   const matchedMood = MOOD_OPTIONS.find((m) => m.id === lastCheckIn?.mood);
-  const matchedConcern = CONCERN_OPTIONS.find((c) => c.id === lastCheckIn?.concern);
+  const matchedConcerns = lastCheckIn?.concerns
+    .map((concern) => CONCERN_OPTIONS.find((option) => option.id === concern)?.label)
+    .filter((label): label is string => Boolean(label));
 
   const formatSessionTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -52,6 +76,7 @@ export default function DashboardPage() {
   return (
     <div className="max-w-[1240px] mx-auto px-4 md:px-8 py-10 space-y-8">
       {/* Header Greeting */}
+      {loadError && <p role="alert" className="text-sm text-red-700">{loadError}</p>}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary-container text-primary text-xs font-semibold mb-2">
@@ -106,7 +131,9 @@ export default function DashboardPage() {
               {matchedMood ? matchedMood.label : 'ใจนิ่งและมั่นคง'}
             </p>
             <span className="text-[11px] text-text-muted line-clamp-1">
-              {matchedConcern ? matchedConcern.label : 'พร้อมลุยสำหรับวันนี้'}
+              {matchedConcerns && matchedConcerns.length > 0
+                ? matchedConcerns.join(' • ')
+                : 'พร้อมลุยสำหรับวันนี้'}
             </span>
           </div>
         </div>
@@ -209,7 +236,7 @@ export default function DashboardPage() {
           <h3 className="text-lg font-bold text-primary font-display">
             กิจกรรมล่าสุด
           </h3>
-          <span className="text-xs text-text-muted">บันทึกไว้ในเบราว์เซอร์เครื่องนี้</span>
+          <span className="text-xs text-text-muted">{signedIn ? 'บันทึกไว้ในบัญชีของคุณ' : 'บันทึกไว้ในเบราว์เซอร์เครื่องนี้'}</span>
         </div>
 
         <div className="bg-surface-lowest rounded-3xl border border-stone-200/60 divide-y divide-stone-100 overflow-hidden shadow-soft">

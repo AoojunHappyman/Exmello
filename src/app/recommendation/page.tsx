@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -16,31 +16,52 @@ import {
 import { getRecommendation } from '@/lib/recommendations';
 import { getLastCheckIn } from '@/lib/storage';
 import { MoodType, ConcernType, NeedType, RecommendationResult } from '@/types';
+import { getAuthSession, getCheckin, getCheckins, readableApiError } from '@/lib/api';
 
 function RecommendationContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   const [recommendation, setRecommendation] = useState<RecommendationResult | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
+    let active = true;
+    setRecommendation(null);
+    setError('');
+    if (getAuthSession()) {
+      const checkinId = searchParams.get('checkinId');
+      const load = checkinId ? getCheckin(checkinId) : getCheckins(1).then((items) => items[0]);
+      load.then((checkin) => {
+        if (!active) return;
+        if (checkin) setRecommendation(checkin.recommendation);
+        else setError('ยังไม่มีเช็กอินในบัญชี เริ่มเช็กอินเพื่อรับคำแนะนำได้เลย');
+      }).catch((cause) => { if (active) setError(readableApiError(cause)); });
+      return () => { active = false; };
+    }
+    if (searchParams.get('checkinId')) {
+      setError('กรุณาเข้าสู่ระบบเพื่อดูคำแนะนำที่บันทึกไว้');
+      return () => { active = false; };
+    }
     const moodParam = searchParams.get('mood') as MoodType | null;
-    const concernParam = searchParams.get('concern') as ConcernType | null;
+    const concernParams = searchParams.getAll('concern') as ConcernType[];
     const needParam = searchParams.get('need') as NeedType | null;
 
-    if (moodParam && concernParam) {
-      setRecommendation(getRecommendation(moodParam, concernParam, needParam || undefined));
+    if (moodParam && concernParams.length > 0) {
+      setRecommendation(getRecommendation(moodParam, concernParams, needParam || undefined));
     } else {
       // Try local storage from last session
       const last = getLastCheckIn();
       if (last) {
-        setRecommendation(getRecommendation(last.mood, last.concern, last.need));
+        setRecommendation(getRecommendation(last.mood, last.concerns, last.need));
       } else {
         // Fallback default
-        setRecommendation(getRecommendation('stressed', 'cant_finish', 'focus'));
+        setRecommendation(getRecommendation('stressed', ['cant_finish'], 'focus'));
       }
     }
+    return () => { active = false; };
   }, [searchParams]);
+
+  if (error) return <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-4 text-center"><p role="alert" className="text-sm text-red-700">{error}</p><Link href={searchParams.get('checkinId') && !getAuthSession() ? '/login' : '/checkin'} className="text-primary font-semibold underline">{searchParams.get('checkinId') && !getAuthSession() ? 'เข้าสู่ระบบ' : 'ไปเช็กอิน'}</Link></div>;
 
   if (!recommendation) {
     return (
