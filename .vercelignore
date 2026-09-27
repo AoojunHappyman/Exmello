@@ -1,0 +1,7 @@
+backend
+docs
+tests
+.env*
+.git
+*.log
+.deploy

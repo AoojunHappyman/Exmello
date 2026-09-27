@@ -7,9 +7,9 @@ import { ApiError, getResource, getResources } from "@/lib/api";
 export const dynamic = "force-dynamic";
 
 interface ResourceDetailPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 function inlineText(text: string) {
@@ -94,7 +94,7 @@ export default async function ResourceDetailPage({
 }: ResourceDetailPageProps) {
   let article;
   try {
-    article = await getResource(params.id);
+    article = await getResource((await params).id);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
     throw error;

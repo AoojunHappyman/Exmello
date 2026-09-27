@@ -2,12 +2,12 @@
 
 > **"Exam season, made lighter. Breathe through exam season with micro-resets and calm focus in seconds."**
 
-[![Next.js](https://img.shields.io/badge/Next.js-14.2-black?style=flat&logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-18.3-blue?style=flat&logo=react)](https://react.dev/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.3-black?style=flat&logo=next.js)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19.2-blue?style=flat&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38B2AC?style=flat&logo=tailwind-css)](https://tailwindcss.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[Product polish and QA report](docs/PRODUCT_POLISH.md)
+[Product polish and QA report](docs/PRODUCT_POLISH.md) | [Deployment guide](docs/DEPLOYMENT.md)
 
 ---
 
@@ -52,7 +52,7 @@ Within seconds, a deterministic recommendation engine provides supportive copy a
 ## 4. Tech Stack
 
 - **Framework:** Next.js (App Router)
-- **UI Library:** React 18 + TypeScript
+- **UI Library:** React 19 + TypeScript
 - **Styling:** Tailwind CSS + PostCSS
 - **Animations:** Framer Motion
 - **Icons:** Lucide React
@@ -64,7 +64,7 @@ Within seconds, a deterministic recommendation engine provides supportive copy a
 ## 5. Local Development Setup
 
 ### Prerequisites
-- Node.js 18+ (tested on Node v24.19)
+- Node.js 24 (tested on Node v24.19)
 - npm 9+
 
 ### Installation & Run
@@ -81,7 +81,7 @@ npm install
 npm run dev
 ```
 
-Run the PostgreSQL-backed API using the steps in [backend/README.md](backend/README.md), then open [http://localhost:3000](http://localhost:3000). The frontend defaults to `http://127.0.0.1:8000`; copy `.env.example` to `.env.local` to change `NEXT_PUBLIC_API_BASE_URL`. Public articles require the API. With an account, check-ins, recommendations, and focus sessions are saved in PostgreSQL. Guest data remains in this browser and is not uploaded on sign-in.
+Run the PostgreSQL-backed API using the steps in [backend/README.md](backend/README.md), then open [http://localhost:3000](http://localhost:3000). The frontend defaults to `http://127.0.0.1:8000`; copy `.env.example` to `.env.local` to change `API_INTERNAL_URL`. Public articles require the API. With an account, check-ins, recommendations, and focus sessions are saved in PostgreSQL. Guest data remains in this browser and is not uploaded on sign-in.
 
 ### Production Build
 
