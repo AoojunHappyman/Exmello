@@ -4,7 +4,7 @@
 
 The current Next.js app is guest first and stores guest activity in browser `localStorage`. This backend adds persistent accounts without changing that flow. Authenticated check-ins, recommendations, focus sessions, and dashboard data belong to the JWT user. Resources are public. Anonymous API writes are deliberately unavailable because there is no stable server side guest identity to enforce ownership.
 
-The API prefix is `/api`, matching the newer backend request. The older PRD's `/api/v1`, single `concern`, and completed-on-create focus contract are superseded by the current frontend's multiple concerns and the newer backend requirements. This repository does not yet call the API from the frontend; integrating it requires a later frontend change.
+The API prefix is `/api`, matching the newer backend request. The older PRD's `/api/v1`, single `concern`, and completed-on-create focus contract are superseded by the current frontend's multiple concerns and the newer backend requirements. The frontend calls these endpoints through `src/lib/api.ts`. Guest check-ins and focus history stay local; signed-in check-ins, focus, recommendations, and dashboard use the API.
 
 ```mermaid
 flowchart LR
@@ -57,6 +57,6 @@ The seeded concern order follows the current frontend implementation. Seed rows 
 
 ## Security boundary
 
-Passwords are hashed with Argon2. JWTs use an environment supplied signing secret and expire after the configured period. Ownership filters apply to every user record lookup, including direct IDs. A missing or invalid token returns 401; another user's record returns 404. No browser token storage has been added because the frontend was left untouched.
+Passwords are hashed with Argon2. JWTs use an environment supplied signing secret and expire after the configured period. Ownership filters apply to every user record lookup, including direct IDs. A missing or invalid token returns 401; another user's record returns 404. The frontend currently stores its bearer token in localStorage. Moving auth to secure HttpOnly cookies, adding abuse controls, and deployment hardening remain production work.
 
-`DELETE /api/auth/me` removes the account and its owned check-ins, recommendations, and focus sessions. The current frontend's local purge action does not call this endpoint.
+`DELETE /api/auth/me` removes the account and its owned check-ins, recommendations, and focus sessions. The profile screen calls this endpoint after an explicit confirmation for signed-in users, then clears browser data. Guest deletion only clears browser storage.

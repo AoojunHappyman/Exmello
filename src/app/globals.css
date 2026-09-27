@@ -1,73 +1,148 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --font-plus-jakarta: 'Plus Jakarta Sans', 'Noto Sans Thai', sans-serif;
-    --font-inter: 'Inter', 'Noto Sans Thai', sans-serif;
+    --font-plus-jakarta: "Plus Jakarta Sans", "Noto Sans Thai", sans-serif;
+    --font-inter: "Plus Jakarta Sans", "Noto Sans Thai", sans-serif;
   }
-
   html {
     scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    background-color: #F8F7F2;
-    color: #101E19;
+    background: #f8f7f4;
+    color: #26332d;
   }
-
   body {
     min-height: 100vh;
-    display: flex;
-    flex-direction: column;
     font-family: var(--font-inter);
-    background-color: #F8F7F2;
-    color: #101E19;
-    overflow-x: hidden;
+    line-height: 1.7;
   }
-
-  /* Accessible focus states */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-plus-jakarta);
+    text-wrap: balance;
+    line-height: 1.35;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  button,
+  a,
+  input,
+  textarea,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button,
+  a {
+    touch-action: manipulation;
+  }
+  button {
+    transition:
+      background-color 0.18s,
+      border-color 0.18s,
+      box-shadow 0.18s,
+      transform 0.18s;
+  }
+  button:not(:disabled):active,
+  .btn:active {
+    transform: translateY(1px);
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  button {
+    min-height: 44px;
+  }
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+  input,
+  textarea {
+    max-width: 100%;
+  }
   *:focus-visible {
-    outline: 2px solid #2F5D50;
-    outline-offset: 2px;
+    outline: 3px solid #446553;
+    outline-offset: 4px;
   }
-
-  /* Custom selection */
   ::selection {
-    background-color: #C3E8D1;
-    color: #154539;
+    background: #a8c7b5;
+    color: #26332d;
   }
 }
-
-/* Reduced motion accessibility */
+@layer components {
+  .page-shell {
+    @apply mx-auto w-full max-w-[1160px] px-5 py-10 sm:px-8 sm:py-14;
+  }
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.16em] text-secondary;
+  }
+  .page-title {
+    @apply text-3xl font-semibold tracking-tight text-primary sm:text-4xl;
+  }
+  .card {
+    @apply rounded-3xl border border-[#E3E8E1] bg-white p-6 shadow-card sm:p-8;
+  }
+  .btn {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold transition-colors;
+  }
+  .btn-primary {
+    @apply bg-primary-container text-white shadow-soft hover:bg-primary-dark;
+  }
+  .btn-secondary {
+    @apply border border-[#DCE3DB] bg-white text-primary hover:bg-sage-50;
+  }
+  .btn-quiet {
+    @apply text-secondary hover:bg-sage-100;
+  }
+  .field {
+    @apply w-full rounded-2xl border border-[#D6DED5] bg-white px-4 py-3 text-text-primary placeholder:text-text-muted;
+  }
+  .selection {
+    @apply relative rounded-2xl border border-[#DCE3DB] bg-white p-4 text-left transition-colors hover:border-sage-500 hover:bg-sage-50;
+  }
+  .selection[aria-pressed="true"] {
+    @apply border-primary-container bg-sage-100 ring-1 ring-primary-container;
+  }
+  .skeleton {
+    @apply animate-pulse rounded-2xl bg-[#E7EBE4];
+  }
+  .tool-shell {
+    @apply mx-auto w-full max-w-2xl px-5 py-10 sm:px-8 sm:py-14;
+  }
+  .section-rule {
+    @apply border-t border-[#DCE3DB] pt-10;
+  }
+}
+@layer utilities {
+  .text-xs {
+    font-size: 0.8125rem;
+    line-height: 1.65;
+  }
+  .text-text-muted {
+    color: #657069;
+  }
+  .safe-bottom {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+  .tabular-time {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   *,
-  ::before,
-  ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #F4F1EA;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #C9DFD3;
-  border-radius: 9999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #A8C7B5;
 }

@@ -1,134 +1,113 @@
-'use client';
+"use client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { ArrowUpRight, Leaf, Menu, User, X } from "lucide-react";
+import { getAuthSession, onAuthChange } from "@/lib/api";
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { User, Menu, X } from 'lucide-react';
-
-export const Navbar: React.FC = () => {
+export const Navbar = () => {
   const pathname = usePathname();
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
+  const [open, setOpen] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 15);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    setOpen(false);
+  }, [pathname]);
+  useEffect(() => {
+    const sync = () => setSignedIn(Boolean(getAuthSession()));
+    sync();
+    return onAuthChange(sync);
   }, []);
-
-  const navLinks = [
-    { label: 'หน้าแรก', href: '/' },
-    { label: 'ฟีเจอร์', href: '/#core-features' },
-    { label: 'วิธีใช้งาน', href: '/#how-it-works' },
-    { label: 'เครื่องมือ', href: '/#interactive-suite' },
-    { label: 'Resources', href: '/resources' },
-    { label: 'Dashboard', href: '/dashboard' },
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, []);
+  const links = [
+    { label: "หน้าแรก", href: "/" },
+    { label: "เครื่องมือ", href: "/#core-features" },
+    { label: "บทความ", href: "/resources" },
+    { label: "My EXMELLO", href: "/dashboard" },
   ];
-
   return (
-    <header
-      className={`fixed top-0 left-0 w-full z-50 transition-all duration-200 ${
-        isScrolled
-          ? 'bg-[#F8F7F2]/90 backdrop-blur-xl shadow-nav border-b border-stone-200/50'
-          : 'bg-[#F8F7F2]/80 backdrop-blur-md'
-      }`}
-    >
-      <div className="h-20 max-w-[1240px] mx-auto px-4 md:px-8 flex items-center justify-between gap-4">
-        {/* Brand Logo */}
+    <header className="sticky top-0 z-40 border-b border-[#E3E8E1]/80 bg-[#F8F7F4]/95 backdrop-blur-xl">
+      <div className="mx-auto flex h-[76px] max-w-[1280px] items-center justify-between gap-3 px-5 sm:px-8">
         <Link
           href="/"
-          className="flex items-center gap-2.5 group focus-visible:ring-offset-2 rounded-lg"
           aria-label="EXMELLO หน้าแรก"
+          className="flex items-center gap-2.5 rounded-lg"
         >
-          <div className="w-9 h-9 rounded-xl bg-primary-container/10 flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
-            <span className="text-xl">🌱</span>
-          </div>
-          <span className="text-xl font-bold text-primary tracking-tight font-display">
-            EXMELLO
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-container text-white">
+            <Leaf size={21} strokeWidth={1.5} />
+          </span>
+          <span className="font-display text-xl font-bold tracking-[-0.04em] text-primary">
+            exmello<span className="text-sage-500">.</span>
           </span>
         </Link>
-
-        {/* Desktop Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-1 bg-surface-lowest/70 p-1.5 rounded-full border border-stone-200/50 shadow-sm">
-          {navLinks.map((link) => {
-            const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href));
-            return (
-              <Link
-                key={link.label}
-                href={link.href}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
-                  isActive
-                    ? 'bg-primary-container text-white shadow-sm'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-container/60'
-                }`}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
+        <nav
+          aria-label="การนำทางหลัก"
+          className="hidden items-center gap-7 lg:flex"
+        >
+          {links.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={pathname === item.href ? "page" : undefined}
+              className={`rounded-md py-2 text-sm ${pathname === item.href ? "font-semibold text-primary underline decoration-sage-300 decoration-2 underline-offset-8" : "text-text-secondary hover:text-primary"}`}
+            >
+              {item.label}
+            </Link>
+          ))}
         </nav>
-
-        {/* Action Controls */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Profile / Account button */}
+        <div className="flex items-center gap-2">
+          <Link
+            href="/checkin"
+            className="btn btn-primary hidden sm:inline-flex"
+          >
+            เช็กอินตอนนี้
+            <ArrowUpRight size={16} />
+          </Link>
           <Link
             href="/profile"
-            aria-label="โปรไฟล์ผู้ใช้"
-            className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white hover:bg-primary-container transition-colors shadow-sm ml-1"
+            aria-label={signedIn ? "บัญชีของฉัน" : "โปรไฟล์และเข้าสู่ระบบ"}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#DCE3DB] hover:bg-sage-100"
           >
-            <User className="w-4 h-4" />
+            <User size={19} />
           </Link>
-
-          {/* Mobile hamburger trigger */}
           <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="เปิดเมนูบนมือถือ"
-            aria-expanded={mobileMenuOpen}
-            aria-controls="mobile-navigation-menu"
-            className="lg:hidden w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-text-primary ml-1"
+            aria-label={open ? "ปิดเมนู" : "เปิดเมนู"}
+            aria-expanded={open}
+            aria-controls="mobile-menu"
+            onClick={() => setOpen(!open)}
+            className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-sage-100 lg:hidden"
           >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {open ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </div>
-
-      {/* Mobile dropdown menu */}
-      {mobileMenuOpen && (
-        <div id="mobile-navigation-menu" className="lg:hidden bg-surface-lowest border-b border-stone-200 px-6 py-5 shadow-lg animate-in slide-in-from-top-2">
-          <div className="flex flex-col gap-2">
-            {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  pathname === link.href
-                    ? 'bg-secondary-container text-primary font-semibold'
-                    : 'text-text-secondary hover:bg-surface-container'
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
-            <div className="pt-3 border-t border-stone-100 flex flex-col gap-2">
-              <Link
-                href="/checkin"
-                onClick={() => setMobileMenuOpen(false)}
-                className="w-full py-3 rounded-full bg-primary-container text-white text-center text-sm font-semibold hover:bg-primary"
-              >
-                เช็กอินความรู้สึกตอนนี้ 🌱
-              </Link>
-              <div className="flex items-center justify-between px-2 pt-2 text-xs text-text-muted">
-                <span>เพื่อนดูแลใจช่วงสอบ</span>
-                <Link href="/help" className="text-secondary hover:underline">
-                  ต้องการความช่วยเหลือ?
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
+      {open && (
+        <nav
+          id="mobile-menu"
+          aria-label="เมนูเพิ่มเติม"
+          className="grid gap-1 border-t border-[#E3E8E1] bg-white p-5 lg:hidden"
+        >
+          {[
+            ...links,
+            { label: "ฝึกหายใจ", href: "/breathing" },
+            { label: "รีเซ็ตสั้น ๆ", href: "/reset" },
+            { label: "ความช่วยเหลือ", href: "/help" },
+          ].map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setOpen(false)}
+              className="rounded-xl px-4 py-3 text-sm hover:bg-sage-50"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
       )}
     </header>
   );

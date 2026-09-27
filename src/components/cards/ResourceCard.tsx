@@ -1,7 +1,7 @@
-import React from 'react';
-import Link from 'next/link';
-import { ArrowRight, Clock } from 'lucide-react';
-import { ResourceArticle } from '@/types';
+import React from "react";
+import Link from "next/link";
+import { ArrowRight, Clock } from "lucide-react";
+import { ResourceArticle } from "@/types";
 
 interface ResourceCardProps {
   article: ResourceArticle;
@@ -15,7 +15,9 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({ article }) => {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={article.coverImage}
-          alt={article.title}
+          alt=""
+          width={640}
+          height={384}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
         />
@@ -34,16 +36,17 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({ article }) => {
           <h3 className="text-base sm:text-lg font-bold text-primary font-display mb-2 leading-snug group-hover:text-primary-light transition-colors">
             {article.title}
           </h3>
-          <p className="text-xs sm:text-sm text-text-secondary leading-relaxed line-clamp-2 mb-4">
+          <p className="text-sm text-text-secondary leading-relaxed line-clamp-2 mb-4">
             {article.summary}
           </p>
         </div>
 
         {/* Read action */}
-        <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-primary font-semibold text-xs sm:text-sm">
+        <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-primary font-semibold text-sm">
           <Link
             href={`/resources/${article.id}`}
-            className="inline-flex items-center gap-1.5 group-hover:gap-2 transition-all"
+            aria-label={`อ่านบทความ: ${article.title}`}
+            className="inline-flex min-h-11 items-center gap-1.5 group-hover:gap-2 transition-all"
           >
             <span>อ่านบทความ</span>
             <ArrowRight className="w-4 h-4 text-primary" />

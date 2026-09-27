@@ -1,291 +1,382 @@
-'use client';
-
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
+"use client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
+  ArrowRight,
+  ArrowUpRight,
+  CalendarDays,
+  Coffee,
+  Leaf,
+  Smile,
   Timer,
   Wind,
-  Sparkles,
-  BookOpen,
-  ArrowRight,
-  Smile,
-  Clock,
-} from 'lucide-react';
+} from "lucide-react";
+import { getActivitySessions, getCheckInHistory } from "@/lib/storage";
 import {
-  getActivitySessions,
-  getTotalMindfulMinutes,
-  getLastCheckIn,
-} from '@/lib/storage';
-import { FocusSessionRecord, CheckInRecord } from '@/types';
-import { MOOD_OPTIONS, CONCERN_OPTIONS } from '@/lib/mock-data';
-import { getAuthSession, getDashboard, getFocusSessions, onAuthChange, readableApiError } from '@/lib/api';
+  getAuthSession,
+  getCheckins,
+  getDashboard,
+  getFocusSessions,
+  onAuthChange,
+  readableApiError,
+} from "@/lib/api";
+import { CheckInRecord, FocusSessionRecord } from "@/types";
+import { MOOD_OPTIONS, CONCERN_OPTIONS } from "@/lib/mock-data";
+import { LoadingCards, StatePanel } from "@/components/ui/Feedback";
 
+type Activity = FocusSessionRecord & { status?: string };
 export default function DashboardPage() {
-  const [sessions, setSessions] = useState<FocusSessionRecord[]>([]);
-  const [mindfulMinutes, setMindfulMinutes] = useState<number>(0);
-  const [lastCheckIn, setLastCheckIn] = useState<CheckInRecord | null>(null);
+  const [sessions, setSessions] = useState<Activity[]>([]);
+  const [checkins, setCheckins] = useState<CheckInRecord[]>([]);
+  const [minutes, setMinutes] = useState(0);
+  const [completed, setCompleted] = useState(0);
   const [signedIn, setSignedIn] = useState(false);
-  const [loadError, setLoadError] = useState('');
-
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    let active = true;
-    const load = () => {
+    let generation = 0;
+    const load = async () => {
+      const current = ++generation;
       const account = getAuthSession();
       setSignedIn(Boolean(account));
-      setLoadError('');
-      if (!account) {
-        setSessions(getActivitySessions());
-        setMindfulMinutes(getTotalMindfulMinutes());
-        setLastCheckIn(getLastCheckIn());
-        return;
+      setName(account?.user.full_name || "");
+      setLoading(true);
+      setError("");
+      setSessions([]);
+      setCheckins([]);
+      setMinutes(0);
+      setCompleted(0);
+      try {
+        if (!account) {
+          const local = getActivitySessions();
+          const focus = local.filter(
+            (item) => item.type === "focus" && item.completed,
+          );
+          setSessions(local);
+          setCheckins(getCheckInHistory());
+          setMinutes(
+            focus.reduce((sum, item) => sum + item.durationMinutes, 0),
+          );
+          setCompleted(focus.length);
+        } else {
+          const [summary, history, focus] = await Promise.all([
+            getDashboard(),
+            getCheckins(100),
+            getFocusSessions(100),
+          ]);
+          if (current !== generation) return;
+          setMinutes(summary.completed_focus_minutes);
+          setCompleted(summary.completed_focus_sessions);
+          setCheckins(
+            history.map((item) => ({
+              id: item.id,
+              mood: item.mood,
+              concerns: item.concerns,
+              need: item.needs[0],
+              timestamp: Date.parse(item.created_at),
+            })),
+          );
+          setSessions(
+            focus.map((item) => ({
+              id: item.id,
+              type: "focus",
+              timestamp: Date.parse(item.completed_at || item.started_at),
+              durationMinutes: item.duration_minutes,
+              completed: item.status === "completed",
+              status: item.status,
+              label: `โฟกัส ${item.duration_minutes} นาที`,
+            })),
+          );
+        }
+      } catch (cause) {
+        if (current === generation) setError(readableApiError(cause));
+      } finally {
+        if (current === generation) setLoading(false);
       }
-      Promise.all([getDashboard(), getFocusSessions()]).then(([dashboard, focus]) => {
-        if (!active) return;
-        setMindfulMinutes(dashboard.completed_focus_minutes);
-        const checkin = dashboard.recent_checkin;
-        setLastCheckIn(checkin ? { id: checkin.id, timestamp: Date.parse(checkin.created_at), mood: checkin.mood, concerns: checkin.concerns, need: checkin.needs[0] } : null);
-        setSessions(focus.filter((item) => item.status === 'completed').map((item) => ({ id: item.id, timestamp: Date.parse(item.completed_at || item.started_at), durationMinutes: item.duration_minutes, completed: true, type: 'focus' as const, label: `โฟกัส ${item.duration_minutes} นาที` })));
-      }).catch((error) => { if (active) setLoadError(readableApiError(error)); });
     };
-    load();
-    const unsubscribe = onAuthChange(load);
-    return () => { active = false; unsubscribe(); };
-  }, []);
-
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'สวัสดีตอนเช้า';
-    if (hour < 18) return 'สวัสดีตอนบ่าย';
-    return 'สวัสดีตอนเย็น';
-  };
-
-  const matchedMood = MOOD_OPTIONS.find((m) => m.id === lastCheckIn?.mood);
-  const matchedConcerns = lastCheckIn?.concerns
-    .map((concern) => CONCERN_OPTIONS.find((option) => option.id === concern)?.label)
-    .filter((label): label is string => Boolean(label));
-
-  const formatSessionTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffHours = Math.round((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    if (diffHours < 1) return 'เมื่อสักครู่';
-    if (diffHours < 24) return `${diffHours} ชม. ที่แล้ว`;
-    return date.toLocaleDateString('th-TH', { month: 'short', day: 'numeric' });
-  };
-
+    void load();
+    const unsubscribe = onAuthChange(() => void load());
+    return () => {
+      generation++;
+      unsubscribe();
+    };
+  }, [attempt]);
+  const latest = checkins[0];
+  const mood = MOOD_OPTIONS.find((item) => item.id === latest?.mood);
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const day = new Date();
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() - 6 + i);
+    const end = new Date(day);
+    end.setDate(end.getDate() + 1);
+    return {
+      day,
+      record: checkins.find(
+        (item) =>
+          item.timestamp >= day.getTime() && item.timestamp < end.getTime(),
+      ),
+    };
+  });
+  const formatDate = (stamp: number) =>
+    new Date(stamp).toLocaleDateString("th-TH", {
+      day: "numeric",
+      month: "short",
+    });
   return (
-    <div className="max-w-[1240px] mx-auto px-4 md:px-8 py-10 space-y-8">
-      {/* Header Greeting */}
-      {loadError && <p role="alert" className="text-sm text-red-700">{loadError}</p>}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="page-shell">
+      <div className="mb-9 flex flex-wrap items-end justify-between gap-5">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary-container text-primary text-xs font-semibold mb-2">
-            <span>🌱</span>
-            <span>Dashboard ส่วนตัว</span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-primary font-display">
-            {getGreeting()}, เพื่อนนักศึกษา 👋
+          <p className="eyebrow">MY EXMELLO</p>
+          <h1 className="page-title mt-3">
+            {name ? `ยินดีที่ได้เจอกัน, ${name}` : "พื้นที่เล็ก ๆ ของคุณ"}
           </h1>
-          <p className="text-xs sm:text-sm text-text-secondary mt-1">
-            ช่วงสอบแบบเบาใจขึ้น นี่คือภาพรวมเวลาที่คุณได้โฟกัสกับการเรียนอย่างมีสติ
+          <p className="mt-3 text-base text-text-secondary">
+            ทุกครั้งที่กลับมาดูแลตัวเอง มีความหมายเสมอ
           </p>
         </div>
-
-        <Link
-          href="/checkin"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary-container text-white text-xs sm:text-sm font-semibold hover:bg-primary shadow-sm active:translate-y-0.5 transition-all self-start sm:self-auto"
-        >
-          <Smile className="w-4 h-4" />
-          <span>เช็กอินประจำวัน</span>
+        <Link className="btn btn-primary" href="/checkin">
+          <Smile size={18} />
+          เช็กอินวันนี้
+          <ArrowRight size={16} />
         </Link>
       </div>
-
-      {/* Top Metrics Bento */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        {/* Metric 1: Total Mindful Minutes */}
-        <div className="bg-surface-lowest rounded-3xl p-6 shadow-card border border-stone-200/60 flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-[#E2F5EA] text-[#21674A] flex items-center justify-center shrink-0">
-            <Timer className="w-7 h-7" />
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-secondary uppercase tracking-wider">
-              เวลาโฟกัสสะสม
-            </span>
-            <p className="text-3xl font-bold text-primary font-display mt-0.5">
-              {mindfulMinutes} <span className="text-base font-normal text-text-secondary">นาที</span>
-            </p>
-            <span className="text-[11px] text-text-muted">ไม่กดดัน โฟกัสแบบสบายใจ</span>
-          </div>
-        </div>
-
-        {/* Metric 2: Last Check-In */}
-        <div className="bg-surface-lowest rounded-3xl p-6 shadow-card border border-stone-200/60 flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-[#E2F0FA] text-[#246A98] flex items-center justify-center text-3xl shrink-0 select-none">
-            {matchedMood ? matchedMood.emoji : '🙂'}
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-secondary uppercase tracking-wider">
-              สภาพจิตใจล่าสุด
-            </span>
-            <p className="text-lg font-bold text-primary font-display mt-0.5">
-              {matchedMood ? matchedMood.label : 'ใจนิ่งและมั่นคง'}
-            </p>
-            <span className="text-[11px] text-text-muted line-clamp-1">
-              {matchedConcerns && matchedConcerns.length > 0
-                ? matchedConcerns.join(' • ')
-                : 'พร้อมลุยสำหรับวันนี้'}
-            </span>
-          </div>
-        </div>
-
-        {/* Metric 3: Gentle Encouragement */}
-        <div className="bg-surface-lowest rounded-3xl p-6 shadow-card border border-stone-200/60 flex items-center gap-4">
-          <div className="w-14 h-14 rounded-3xl bg-[#FCEEE2] text-[#9A5420] flex items-center justify-center text-3xl shrink-0 select-none">
-            🐻‍❄️
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-[#E08A3C] uppercase tracking-wider">
-              ไม่มีการนับ Streak หลุด
-            </span>
-            <p className="text-sm font-bold text-primary font-display mt-0.5">
-              พักเมื่อไหร่ก็ได้ที่ใจต้องการ
-            </p>
-            <span className="text-[11px] text-text-muted">ไม่สร้างความกดดันให้ตัวเอง</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Recommended For You Tools */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-bold text-primary font-display">
-          ก้าวถัดไปที่แนะนำ
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {/* Card 1: Focus */}
-          <Link
-            href="/focus?duration=25"
-            className="group p-6 rounded-3xl bg-surface-lowest border border-stone-200/60 hover:border-secondary transition-all shadow-soft flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-2xl bg-[#E2F5EA] text-[#21674A] flex items-center justify-center mb-3">
-                <Timer className="w-5 h-5" />
+      {loading ? (
+        <LoadingCards label="กำลังโหลด My EXMELLO" />
+      ) : error ? (
+        <StatePanel
+          error
+          title="ยังโหลดพื้นที่ของคุณไม่ได้"
+          description={error}
+          onRetry={() => setAttempt(attempt + 1)}
+        />
+      ) : (
+        <>
+          <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+            <section className="card !bg-[#EDF2E8]">
+              <div className="flex items-center justify-between gap-3">
+                <p className="eyebrow">เช็กอินล่าสุด</p>
+                {latest && (
+                  <span className="text-xs text-secondary">
+                    {formatDate(latest.timestamp)}
+                  </span>
+                )}
               </div>
-              <h4 className="text-base font-bold text-primary font-display group-hover:text-primary-light transition-colors">
-                โฟกัส 25 นาที
-              </h4>
-              <p className="text-xs text-text-secondary mt-1">
-                ช่วงเวลา Pomodoro เงียบ ๆ สำหรับการอ่านหนังสืออย่างมีสมาธิ
-              </p>
-            </div>
-            <div className="pt-4 flex items-center justify-between text-xs font-semibold text-primary">
-              <span>เริ่มเซสชัน</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </div>
-          </Link>
-
-          {/* Card 2: Breathing */}
-          <Link
-            href="/breathing?mode=box"
-            className="group p-6 rounded-3xl bg-surface-lowest border border-stone-200/60 hover:border-secondary transition-all shadow-soft flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-2xl bg-[#EDF8E9] text-[#3D7639] flex items-center justify-center mb-3">
-                <Wind className="w-5 h-5" />
-              </div>
-              <h4 className="text-base font-bold text-primary font-display group-hover:text-primary-light transition-colors">
-                ฝึกหายใจแบบกล่อง
-              </h4>
-              <p className="text-xs text-text-secondary mt-1">
-                หายใจ 4 จังหวะ (4-4-4-4) เพื่อปรับระบบประสาทให้สงบลง
-              </p>
-            </div>
-            <div className="pt-4 flex items-center justify-between text-xs font-semibold text-primary">
-              <span>เริ่มฝึกหายใจ</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </div>
-          </Link>
-
-          {/* Card 3: Resources */}
-          <Link
-            href="/resources"
-            className="group p-6 rounded-3xl bg-surface-lowest border border-stone-200/60 hover:border-secondary transition-all shadow-soft flex flex-col justify-between"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-2xl bg-[#ECECFD] text-[#4B449A] flex items-center justify-center mb-3">
-                <BookOpen className="w-5 h-5" />
-              </div>
-              <h4 className="text-base font-bold text-primary font-display group-hover:text-primary-light transition-colors">
-                แหล่งข้อมูลช่วยเหลือ
-              </h4>
-              <p className="text-xs text-text-secondary mt-1">
-                คู่มือรับมือความกังวลสอบ การจัดตารางนอน และการดูแลจิตใจ
-              </p>
-            </div>
-            <div className="pt-4 flex items-center justify-between text-xs font-semibold text-primary">
-              <span>ดูบทความทั้งหมด</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </div>
-          </Link>
-        </div>
-      </div>
-
-      {/* Recent Activity Feed */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-primary font-display">
-            กิจกรรมล่าสุด
-          </h3>
-          <span className="text-xs text-text-muted">{signedIn ? 'บันทึกไว้ในบัญชีของคุณ' : 'บันทึกไว้ในเบราว์เซอร์เครื่องนี้'}</span>
-        </div>
-
-        <div className="bg-surface-lowest rounded-3xl border border-stone-200/60 divide-y divide-stone-100 overflow-hidden shadow-soft">
-          {sessions.length > 0 ? (
-            sessions.slice(0, 5).map((sess) => (
-              <div
-                key={sess.id}
-                className="p-4 sm:p-5 flex items-center justify-between gap-4 hover:bg-surface-container/30 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-10 h-10 rounded-2xl flex items-center justify-center text-sm ${
-                      sess.type === 'focus'
-                        ? 'bg-[#E2F5EA] text-[#21674A]'
-                        : sess.type === 'breathing'
-                        ? 'bg-[#EDF8E9] text-[#3D7639]'
-                        : 'bg-[#FCEEE2] text-[#9A5420]'
-                    }`}
+              {latest ? (
+                <>
+                  <div className="my-6 flex items-center gap-4">
+                    <span aria-hidden="true" className="text-5xl">
+                      {mood?.emoji}
+                    </span>
+                    <div>
+                      <h2 className="text-2xl font-semibold text-primary">
+                        {mood?.label}
+                      </h2>
+                      <p className="mt-1 text-sm text-secondary">
+                        นี่คือความรู้สึกในตอนที่คุณเช็กอิน
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {latest.concerns.map((value) => (
+                      <span
+                        key={value}
+                        className="rounded-full border border-[#CEDCCC] bg-white/70 px-3 py-1.5 text-xs text-secondary"
+                      >
+                        {
+                          CONCERN_OPTIONS.find((item) => item.id === value)
+                            ?.label
+                        }
+                      </span>
+                    ))}
+                  </div>
+                  <Link
+                    className="mt-6 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"
+                    href={
+                      signedIn
+                        ? `/recommendation?checkinId=${latest.id}`
+                        : "/recommendation"
+                    }
                   >
-                    {sess.type === 'focus' ? (
-                      <Timer className="w-5 h-5" />
-                    ) : sess.type === 'breathing' ? (
-                      <Wind className="w-5 h-5" />
-                    ) : (
-                      <Sparkles className="w-5 h-5" />
-                    )}
-                  </div>
-                  <div>
-                    <h5 className="text-sm font-bold text-primary font-display">
-                      {sess.label || `${sess.type} ${sess.durationMinutes} นาที`}
-                    </h5>
-                    <p className="text-xs text-text-secondary">
-                      {sess.durationMinutes} นาที • สำเร็จเรียบร้อย
-                    </p>
-                  </div>
+                    กลับไปดูคำแนะนำ
+                    <ArrowRight size={16} />
+                  </Link>
+                </>
+              ) : (
+                <div className="py-7">
+                  <Leaf
+                    size={34}
+                    strokeWidth={1.4}
+                    className="mb-4 text-sage-600"
+                  />
+                  <h2 className="text-2xl font-semibold text-primary">
+                    การเดินทางเริ่มตรงนี้
+                  </h2>
+                  <p className="mb-5 mt-3 text-sm text-text-secondary">
+                    ยังไม่มีเช็กอิน ลองให้เวลาฟังตัวเองสัก 15 วินาที
+                  </p>
+                  <Link className="btn btn-primary" href="/checkin">
+                    เริ่มเช็กอิน
+                    <ArrowRight size={16} />
+                  </Link>
                 </div>
-
-                <div className="flex items-center gap-2 text-xs text-text-muted">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>{formatSessionTime(sess.timestamp)}</span>
+              )}
+            </section>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="card flex flex-col justify-between !p-5">
+                <Timer size={23} className="text-sage-600" />
+                <div>
+                  <p className="tabular-time mt-7 text-4xl font-semibold tracking-tight text-primary">
+                    {minutes}
+                    <span className="ml-2 text-sm font-normal">นาที</span>
+                  </p>
+                  <h2 className="mt-2 text-sm font-medium text-secondary">
+                    เวลาโฟกัสสะสม
+                  </h2>
                 </div>
               </div>
-            ))
-          ) : (
-            <div className="p-8 text-center text-xs text-text-secondary">
-              ยังไม่มีกิจกรรมที่บันทึกไว้ ลองเริ่มโฟกัส 25 นาทีหรือฝึกหายใจสั้น ๆ ดูนะ!
+              <div className="card flex flex-col justify-between !p-5">
+                <Leaf size={23} className="text-sage-600" />
+                <div>
+                  <p className="tabular-time mt-7 text-4xl font-semibold tracking-tight text-primary">
+                    {completed}
+                    <span className="ml-2 text-sm font-normal">รอบ</span>
+                  </p>
+                  <h2 className="mt-2 text-sm font-medium text-secondary">
+                    โฟกัสสำเร็จ
+                  </h2>
+                </div>
+              </div>
+              <div className="col-span-2 rounded-3xl border border-[#E6D8C6] bg-[#F5EADD] p-5">
+                <p className="text-sm text-[#76583F]">
+                  “ไม่ต้องทำให้ได้ทุกวัน
+                  <br />
+                  แค่กลับมาเมื่อพร้อมก็พอ”
+                </p>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+          <section className="card mt-6">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-primary">
+                  7 วันที่ผ่านมา
+                </h2>
+                <p className="mt-1 text-sm text-text-secondary">
+                  มองย้อนกลับอย่างอ่อนโยน ไม่ใช่คะแนนที่ต้องทำให้ดีขึ้น
+                </p>
+              </div>
+              <CalendarDays size={20} className="text-secondary" />
+            </div>
+            <div className="grid grid-cols-7 gap-1 sm:gap-3">
+              {days.map(({ day, record }) => {
+                const option = MOOD_OPTIONS.find(
+                  (item) => item.id === record?.mood,
+                );
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={`rounded-2xl py-4 text-center ${record ? "bg-sage-50" : "bg-[#F7F7F3]"}`}
+                  >
+                    <span className="block text-xs text-text-muted">
+                      {day.toLocaleDateString("th-TH", { weekday: "short" })}
+                    </span>
+                    <span
+                      className="my-2 block text-xl"
+                      aria-label={option ? option.label : "ไม่มีเช็กอิน"}
+                    >
+                      {option?.emoji || "·"}
+                    </span>
+                    <span className="text-xs text-secondary">
+                      {day.getDate()}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-4 text-xs text-text-muted">
+              แสดงเช็กอินล่าสุดของแต่ละวัน จากประวัติล่าสุดที่โหลดได้
+            </p>
+          </section>
+          <section className="mt-9">
+            <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+              <h2 className="text-xl font-semibold text-primary">
+                สิ่งเล็ก ๆ ที่คุณทำแล้ว
+              </h2>
+              <span className="text-xs text-text-muted">
+                {signedIn ? "ประวัติโฟกัสในบัญชี" : "ประวัติในเบราว์เซอร์นี้"}
+              </span>
+            </div>
+            {sessions.length ? (
+              <div className="overflow-hidden rounded-3xl border border-[#E3E8E1] bg-white">
+                {sessions.slice(0, 8).map((item) => {
+                  const Icon =
+                    item.type === "focus"
+                      ? Timer
+                      : item.type === "breathing"
+                        ? Wind
+                        : Coffee;
+                  const status = item.completed
+                    ? "สำเร็จแล้ว"
+                    : item.status === "cancelled"
+                      ? "พักไว้ก่อน"
+                      : "ยังไม่จบรอบ";
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-4 border-b border-[#EDF0EA] p-5 last:border-0"
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sage-50 text-secondary">
+                        <Icon size={19} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm font-semibold text-primary">
+                          {item.label}
+                        </h3>
+                        <p className="mt-1 text-xs text-text-muted">
+                          {formatDate(item.timestamp)} ·{" "}
+                          {item.durationMinutes > 0
+                            ? item.durationMinutes < 1
+                              ? `${Math.round(item.durationMinutes * 60)} วินาที`
+                              : `${Number(item.durationMinutes.toFixed(1))} นาที`
+                            : "บันทึกกิจกรรม"}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-surface-container px-3 py-1 text-xs text-secondary">
+                        {status}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <StatePanel
+                title="ยังมีพื้นที่ให้ก้าวแรกเสมอ"
+                description="เลือกโฟกัสหรือพักสั้น ๆ กิจกรรมของคุณจะค่อย ๆ เติมพื้นที่นี้"
+                href="/focus"
+                action="เริ่มโฟกัสสักรอบ"
+              />
+            )}
+          </section>
+        </>
+      )}
+      <div className="mt-8 grid gap-3 sm:grid-cols-3">
+        {[
+          { href: "/focus", text: "ให้เวลากับการโฟกัส", icon: Timer },
+          { href: "/breathing", text: "กลับมาที่ลมหายใจ", icon: Wind },
+          { href: "/resources", text: "อ่านอะไรเบา ๆ", icon: Leaf },
+        ].map(({ href, text, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className="flex items-center gap-3 rounded-2xl border border-[#DCE3DB] bg-white p-5 text-sm font-medium text-primary hover:bg-sage-50"
+          >
+            <Icon size={19} className="text-secondary" />
+            <span className="flex-1">{text}</span>
+            <ArrowUpRight size={16} />
+          </Link>
+        ))}
       </div>
     </div>
   );

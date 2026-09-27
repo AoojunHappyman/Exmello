@@ -1,200 +1,272 @@
-'use client';
-
-import React, { useEffect, useState, Suspense } from 'react';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
+"use client";
+import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
 import {
   ArrowRight,
-  Stars,
+  ArrowUpRight,
+  BookOpen,
+  Coffee,
+  Leaf,
   RotateCcw,
   Timer,
   Wind,
-  Coffee,
-  BookOpen,
-} from 'lucide-react';
-import { getRecommendation } from '@/lib/recommendations';
-import { getLastCheckIn } from '@/lib/storage';
-import { MoodType, ConcernType, NeedType, RecommendationResult } from '@/types';
-import { getAuthSession, getCheckin, getCheckins, readableApiError } from '@/lib/api';
+} from "lucide-react";
+import { getRecommendation } from "@/lib/recommendations";
+import { getLastCheckIn } from "@/lib/storage";
+import {
+  getAuthSession,
+  getCheckin,
+  getCheckins,
+  readableApiError,
+} from "@/lib/api";
+import { MOOD_OPTIONS, CONCERN_OPTIONS, NEED_OPTIONS } from "@/lib/mock-data";
+import {
+  CheckInRecord,
+  ConcernType,
+  MoodType,
+  NeedType,
+  RecommendationResult,
+} from "@/types";
+import { LoadingCards, StatePanel } from "@/components/ui/Feedback";
 
-function RecommendationContent() {
-  const searchParams = useSearchParams();
-
-  const [recommendation, setRecommendation] = useState<RecommendationResult | null>(null);
-  const [error, setError] = useState('');
-
+function Content() {
+  const params = useSearchParams();
+  const [recommendation, setRecommendation] =
+    useState<RecommendationResult | null>(null);
+  const [context, setContext] = useState<Pick<
+    CheckInRecord,
+    "mood" | "concerns" | "need"
+  > | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true;
-    setRecommendation(null);
-    setError('');
-    if (getAuthSession()) {
-      const checkinId = searchParams.get('checkinId');
-      const load = checkinId ? getCheckin(checkinId) : getCheckins(1).then((items) => items[0]);
-      load.then((checkin) => {
-        if (!active) return;
-        if (checkin) setRecommendation(checkin.recommendation);
-        else setError('ยังไม่มีเช็กอินในบัญชี เริ่มเช็กอินเพื่อรับคำแนะนำได้เลย');
-      }).catch((cause) => { if (active) setError(readableApiError(cause)); });
-      return () => { active = false; };
-    }
-    if (searchParams.get('checkinId')) {
-      setError('กรุณาเข้าสู่ระบบเพื่อดูคำแนะนำที่บันทึกไว้');
-      return () => { active = false; };
-    }
-    const moodParam = searchParams.get('mood') as MoodType | null;
-    const concernParams = searchParams.getAll('concern') as ConcernType[];
-    const needParam = searchParams.get('need') as NeedType | null;
-
-    if (moodParam && concernParams.length > 0) {
-      setRecommendation(getRecommendation(moodParam, concernParams, needParam || undefined));
-    } else {
-      // Try local storage from last session
-      const last = getLastCheckIn();
-      if (last) {
-        setRecommendation(getRecommendation(last.mood, last.concerns, last.need));
-      } else {
-        // Fallback default
-        setRecommendation(getRecommendation('stressed', ['cant_finish'], 'focus'));
+    async function load() {
+      setLoading(true);
+      setError("");
+      setRecommendation(null);
+      try {
+        if (getAuthSession()) {
+          const id = params.get("checkinId");
+          const item = id ? await getCheckin(id) : (await getCheckins(1))[0];
+          if (active && item) {
+            setRecommendation(item.recommendation);
+            setContext({
+              mood: item.mood,
+              concerns: item.concerns,
+              need: item.needs[0],
+            });
+          }
+        } else {
+          if (params.get("checkinId")) throw new Error("login");
+          const mood = params.get("mood") as MoodType;
+          const concerns = params
+            .getAll("concern")
+            .filter((value): value is ConcernType =>
+              CONCERN_OPTIONS.some((item) => item.id === value),
+            )
+            .slice(0, 3);
+          const need = params.get("need") as NeedType;
+          const last =
+            MOOD_OPTIONS.some((item) => item.id === mood) && concerns.length
+              ? {
+                  mood,
+                  concerns,
+                  need: NEED_OPTIONS.some((item) => item.id === need)
+                    ? need
+                    : undefined,
+                }
+              : getLastCheckIn();
+          if (active && last) {
+            setRecommendation(
+              getRecommendation(last.mood, last.concerns, last.need),
+            );
+            setContext(last);
+          }
+        }
+      } catch (cause) {
+        if (active)
+          setError(
+            cause instanceof Error && cause.message === "login"
+              ? "เข้าสู่ระบบเพื่อเปิดคำแนะนำที่บันทึกไว้ในบัญชี"
+              : readableApiError(cause),
+          );
+      } finally {
+        if (active) setLoading(false);
       }
     }
-    return () => { active = false; };
-  }, [searchParams]);
-
-  if (error) return <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-4 text-center"><p role="alert" className="text-sm text-red-700">{error}</p><Link href={searchParams.get('checkinId') && !getAuthSession() ? '/login' : '/checkin'} className="text-primary font-semibold underline">{searchParams.get('checkinId') && !getAuthSession() ? 'เข้าสู่ระบบ' : 'ไปเช็กอิน'}</Link></div>;
-
-  if (!recommendation) {
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [params, attempt]);
+  if (loading)
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <span className="text-3xl animate-bounce">🌱</span>
-          <p className="text-sm font-semibold text-primary">กำลังเตรียมแผนที่อ่อนโยนสำหรับคุณ...</p>
-        </div>
+      <div className="page-shell max-w-4xl">
+        <LoadingCards count={1} label="กำลังเตรียมก้าวถัดไปของคุณ" />
       </div>
     );
-  }
-
-  const getActionIcon = (type: string) => {
-    switch (type) {
-      case 'focus':
-        return <Timer className="w-5 h-5 text-white" />;
-      case 'breathing':
-        return <Wind className="w-5 h-5 text-white" />;
-      case 'reset':
-        return <Coffee className="w-5 h-5 text-white" />;
-      default:
-        return <BookOpen className="w-5 h-5 text-white" />;
-    }
+  if (error)
+    return (
+      <div className="page-shell max-w-3xl">
+        <StatePanel
+          error
+          title="ขอเวลาอีกสักครู่"
+          description={error}
+          onRetry={() => setAttempt(attempt + 1)}
+          href={
+            !getAuthSession() && params.get("checkinId") ? "/login" : undefined
+          }
+          action="เข้าสู่ระบบ"
+        />
+      </div>
+    );
+  if (!recommendation)
+    return (
+      <div className="page-shell max-w-3xl">
+        <StatePanel
+          title="เริ่มจากความรู้สึกของคุณ"
+          description="เช็กอินสั้น ๆ แล้วเราจะช่วยเลือกก้าวถัดไปที่เหมาะกับตอนนี้"
+          href="/checkin"
+        />
+      </div>
+    );
+  const icons = {
+    focus: Timer,
+    breathing: Wind,
+    reset: Coffee,
+    resource: BookOpen,
   };
-
+  const Icon = icons[recommendation.primaryAction.type];
+  const actionLabel = (action: RecommendationResult["primaryAction"]) =>
+    action.type === "breathing"
+      ? "ฝึกหายใจ 4 รอบ"
+      : action.type === "reset"
+        ? "พักสั้น ๆ 1–3 นาที"
+        : action.label.replace(/→/g, "").trim();
+  const needLabel = NEED_OPTIONS.find(
+    (item) => item.id === context?.need,
+  )?.label;
   return (
-    <div className="max-w-[1240px] mx-auto px-4 md:px-8 py-10">
-      <div className="max-w-3xl mx-auto space-y-6">
-        {/* Supportive Back / Check-in link */}
-        <div className="flex items-center justify-between text-xs text-text-secondary">
-          <Link
-            href="/checkin"
-            className="inline-flex items-center gap-1 hover:text-text-primary transition-colors font-medium"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>เช็กอินใหม่อีกครั้ง</span>
-          </Link>
-          <span className="bg-secondary-container px-3 py-1 rounded-full text-primary font-semibold">
-            {recommendation.badge || 'คัดสรรมาเพื่อคุณ'}
+    <div className="page-shell max-w-4xl">
+      <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href="/checkin"
+          className="inline-flex min-h-11 items-center gap-2 text-sm text-secondary"
+        >
+          <RotateCcw size={15} />
+          เช็กอินใหม่
+        </Link>
+        <span className="eyebrow">YOUR NEXT SMALL STEP</span>
+      </div>
+      <motion.section
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="card relative overflow-hidden !p-6 sm:!p-10"
+      >
+        <div
+          aria-hidden="true"
+          className="absolute -right-16 -top-16 h-60 w-60 rounded-full bg-[#EBF0E3]"
+        />
+        <div className="relative flex items-start justify-between gap-5">
+          <div>
+            <p className="eyebrow">จากเช็กอินของคุณ</p>
+            <p className="mt-3 text-sm text-secondary">
+              {needLabel
+                ? `คุณเลือกว่าต้องการ “${needLabel}” เราเริ่มตรงนั้นกัน`
+                : "จากสิ่งที่กวนใจ ลองเริ่มด้วยก้าวเล็ก ๆ นี้"}
+            </p>
+          </div>
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#D8E1D0] bg-white/75 text-primary">
+            <Icon size={25} strokeWidth={1.5} />
           </span>
         </div>
-
-        {/* Main Recommendation Hero Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-          className="bg-surface-lowest rounded-3xl p-6 sm:p-10 shadow-card border border-stone-200/60 flex flex-col sm:flex-row items-start justify-between gap-8"
-        >
-          <div className="space-y-4 max-w-lg flex-grow">
-            <div className="inline-flex items-center gap-1.5 text-[#E08A3C] text-xs font-bold uppercase tracking-wider">
-              <Stars className="w-4 h-4" />
-              <span>ก้าวถัดไปที่แนะนำ</span>
-            </div>
-
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary font-display leading-snug">
-              {recommendation.headline}
-            </h1>
-
-            <p className="text-sm sm:text-base text-text-secondary leading-relaxed">
-              {recommendation.message}
-            </p>
-
-            {recommendation.bullets && recommendation.bullets.length > 0 && (
-              <div className="bg-surface-container/50 rounded-2xl p-4 border border-stone-200/50">
-                <p className="text-xs font-bold text-primary mb-2 font-display uppercase tracking-wider">
-                  แผนเล็ก ๆ ที่ทำได้ทันที:
-                </p>
-                <ol className="space-y-1.5 text-xs sm:text-sm text-text-secondary list-decimal list-inside leading-relaxed">
-                  {recommendation.bullets.map((bullet, idx) => (
-                    <li key={idx}>{bullet}</li>
-                  ))}
-                </ol>
-              </div>
-            )}
-
-            {/* Primary Action Button */}
-            <div className="pt-3">
-              <Link
-                href={recommendation.primaryAction.path}
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-primary-container text-white text-sm sm:text-base font-semibold hover:bg-primary shadow-soft active:translate-y-0.5 transition-all w-full sm:w-auto"
+        <h1 className="relative mt-7 max-w-xl text-3xl font-semibold leading-snug tracking-tight text-primary sm:text-4xl">
+          {recommendation.headline.replace(/[🌱⏳💛😴☕🍃🧠🚀]/gu, "").trim()}
+        </h1>
+        <p className="relative mt-5 max-w-2xl text-base leading-relaxed text-text-secondary">
+          {recommendation.message}
+        </p>
+        {context && (
+          <div className="mt-5 flex flex-wrap gap-2">
+            {context.concerns.map((value) => (
+              <span
+                key={value}
+                className="rounded-full border border-[#DCE3DB] px-3 py-1.5 text-xs text-secondary"
               >
-                {getActionIcon(recommendation.primaryAction.type)}
-                <span>{recommendation.primaryAction.label}</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          </div>
-
-          {/* Cute Mascot Graphic */}
-          <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-3xl bg-secondary-container/40 flex items-center justify-center self-center shrink-0 border border-primary/10 shadow-sm">
-            <div className="text-center p-2">
-              <span className="text-5xl sm:text-6xl select-none">🐻‍❄️</span>
-              <p className="text-xs text-primary font-semibold mt-2 font-sans">
-                {recommendation.mascotQuote || 'ค่อย ๆ ทำทีละก้าว'}
-              </p>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Secondary Alternatives */}
-        <div className="bg-surface-container/60 rounded-3xl p-6 border border-stone-200/60">
-          <h3 className="text-sm font-bold text-primary font-display mb-3">
-            ยังไม่รู้สึกอยากทำขั้นตอนนี้ใช่ไหม? ลองเลือกทางเลือกเหล่านี้ดูนะ:
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {recommendation.secondaryActions.map((sec, idx) => (
-              <Link
-                key={idx}
-                href={sec.path}
-                className="flex items-center justify-between p-3.5 rounded-2xl bg-surface-lowest hover:bg-surface-container border border-stone-200/60 text-xs sm:text-sm font-semibold text-primary transition-all shadow-sm"
-              >
-                <span>{sec.label}</span>
-                <ArrowRight className="w-3.5 h-3.5 text-secondary" />
-              </Link>
+                {CONCERN_OPTIONS.find((item) => item.id === value)?.label}
+              </span>
             ))}
           </div>
+        )}
+        {recommendation.bullets?.length ? (
+          <ol className="mt-7 space-y-3 border-t border-[#E3E8E1] pt-6">
+            {recommendation.bullets.map((item, i) => (
+              <li
+                key={item}
+                className="flex items-start gap-3 text-sm text-text-secondary"
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sage-100 text-xs font-semibold text-primary">
+                  {i + 1}
+                </span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ol>
+        ) : null}
+        <Link
+          href={recommendation.primaryAction.path}
+          className="btn btn-primary mt-8 w-full !min-h-14 !text-base sm:w-auto"
+        >
+          <Icon size={19} />
+          {actionLabel(recommendation.primaryAction)}
+          <ArrowRight size={18} />
+        </Link>
+        <p className="mt-4 flex items-center gap-2 text-xs text-text-muted">
+          <Leaf size={14} />
+          เปลี่ยนใจได้เสมอ เลือกสิ่งที่สบายกับคุณ
+        </p>
+      </motion.section>
+      <div className="mt-8">
+        <h2 className="mb-4 text-base font-semibold text-primary">
+          อยากเริ่มอีกแบบก็ได้
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {recommendation.secondaryActions.map((item) => {
+            const SmallIcon = icons[item.type];
+            return (
+              <Link
+                key={item.path}
+                href={item.path}
+                className="group flex items-center justify-between gap-3 rounded-2xl border border-[#DCE3DB] bg-white p-5 hover:border-sage-500"
+              >
+                <span className="flex items-center gap-3 text-sm text-primary">
+                  <SmallIcon size={18} className="shrink-0 text-secondary" />
+                  {actionLabel(item)}
+                </span>
+                <ArrowUpRight size={16} className="shrink-0 text-secondary" />
+              </Link>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
-
 export default function RecommendationPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <p className="text-sm text-primary">กำลังโหลดคำแนะนำ...</p>
+        <div className="page-shell">
+          <LoadingCards count={1} />
         </div>
       }
     >
-      <RecommendationContent />
+      <Content />
     </Suspense>
   );
 }

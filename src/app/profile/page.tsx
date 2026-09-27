@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   User,
   Shield,
@@ -10,25 +10,36 @@ import {
   CheckCircle2,
   Volume2,
   VolumeX,
-  AlertTriangle,
-} from 'lucide-react';
+} from "lucide-react";
 import {
+  DEFAULT_PREFERENCES,
   getUserPreferences,
   updateUserPreferences,
   purgeAllData,
   getCheckInHistory,
   getActivitySessions,
-} from '@/lib/storage';
-import { UserPreferences } from '@/types';
-import { AuthSession, clearAuthSession, deleteAccount, getAuthSession, getCheckins, getFocusSessions, onAuthChange, readableApiError } from '@/lib/api';
+} from "@/lib/storage";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { UserPreferences } from "@/types";
+import {
+  AuthSession,
+  clearAuthSession,
+  deleteAccount,
+  getAuthSession,
+  getCheckins,
+  getFocusSessions,
+  onAuthChange,
+  readableApiError,
+} from "@/lib/api";
 
 export default function ProfilePage() {
-  const [prefs, setPrefs] = useState<UserPreferences>(getUserPreferences());
+  const [prefs, setPrefs] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [showPurgeModal, setShowPurgeModal] = useState<boolean>(false);
-  const [purgeSuccess, setPurgeSuccess] = useState<boolean>(false);
+  const [purgeSuccess, setPurgeSuccess] = useState("");
   const [account, setAccount] = useState<AuthSession | null>(null);
-  const [accountError, setAccountError] = useState('');
+  const [accountError, setAccountError] = useState("");
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
@@ -45,21 +56,28 @@ export default function ProfilePage() {
   };
 
   const handleExportData = async () => {
-    setAccountError('');
+    setAccountError("");
     let checkIns;
     let sessions;
     try {
-      [checkIns, sessions] = account ? await Promise.all([getCheckins(100), getFocusSessions(100)]) : [getCheckInHistory(), getActivitySessions()];
-    } catch (error) { setAccountError(readableApiError(error)); return; }
+      [checkIns, sessions] = account
+        ? await Promise.all([getCheckins(100), getFocusSessions(100)])
+        : [getCheckInHistory(), getActivitySessions()];
+    } catch (error) {
+      setAccountError(readableApiError(error));
+      return;
+    }
     const data = {
       exportedAt: new Date().toISOString(),
       preferences: prefs,
       checkIns,
       sessions,
     };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = `exmello_student_data_${Date.now()}.json`;
     a.click();
@@ -68,15 +86,27 @@ export default function ProfilePage() {
 
   const handleConfirmPurge = async () => {
     setPending(true);
-    setAccountError('');
+    setAccountError("");
     try {
-      if (account) { await deleteAccount(); clearAuthSession(); }
-    } catch (error) { setAccountError(readableApiError(error)); setPending(false); setShowPurgeModal(false); return; }
+      if (account) {
+        await deleteAccount();
+        clearAuthSession();
+      }
+    } catch (error) {
+      setAccountError(readableApiError(error));
+      setPending(false);
+      setShowPurgeModal(false);
+      return;
+    }
     purgeAllData();
     setShowPurgeModal(false);
-    setPurgeSuccess(true);
+    setPurgeSuccess(
+      account
+        ? "ลบบัญชีและข้อมูลทั้งหมดเรียบร้อยแล้ว"
+        : "ลบประวัติและการตั้งค่าในเบราว์เซอร์นี้เรียบร้อยแล้ว",
+    );
     setPrefs(getUserPreferences());
-    setTimeout(() => setPurgeSuccess(false), 3000);
+    setTimeout(() => setPurgeSuccess(""), 3000);
     setPending(false);
   };
 
@@ -84,37 +114,49 @@ export default function ProfilePage() {
     <div className="max-w-[1240px] mx-auto px-4 md:px-8 py-10">
       <div className="max-w-2xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-3xl bg-primary-container text-white flex items-center justify-center text-2xl shadow-soft">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-14 h-14 shrink-0 rounded-2xl bg-primary-container text-white flex items-center justify-center text-2xl shadow-soft">
             <User className="w-8 h-8" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0 break-words">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-bold text-primary font-display">
                 {account?.user.full_name || prefs.displayName}
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full bg-secondary-container text-primary text-[11px] font-semibold">
-                {account ? 'บัญชีผู้ใช้' : 'โหมดทั่วไป (Guest Mode)'}
+              <span className="px-2.5 py-0.5 rounded-full bg-secondary-container text-primary text-xs font-semibold">
+                {account ? "บัญชีผู้ใช้" : "โหมดทั่วไป (Guest Mode)"}
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-text-secondary mt-0.5">
-              {account ? account.user.email : 'บันทึกข้อมูลไว้ในเบราว์เซอร์ของคุณ'}
+            <p className="text-sm text-text-secondary mt-0.5">
+              {account
+                ? account.user.email
+                : "บันทึกข้อมูลไว้ในเบราว์เซอร์ของคุณ"}
             </p>
           </div>
         </div>
 
         {saveSuccess && (
-          <div className="p-3.5 rounded-2xl bg-[#E2F5EA] text-[#21674A] text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+          <div
+            role="status"
+            className="p-3.5 rounded-2xl bg-[#E2F5EA] text-[#21674A] text-xs font-semibold flex items-center gap-2 animate-in fade-in"
+          >
             <CheckCircle2 className="w-4 h-4" />
             <span>บันทึกการตั้งค่าเรียบร้อยแล้ว</span>
           </div>
         )}
-        {accountError && <p role="alert" className="text-sm text-red-700">{accountError}</p>}
+        {accountError && (
+          <p role="alert" className="text-sm text-red-700">
+            {accountError}
+          </p>
+        )}
 
         {purgeSuccess && (
-          <div className="p-3.5 rounded-2xl bg-[#FFEAE8] text-[#A63737] text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+          <div
+            role="status"
+            className="p-3.5 rounded-2xl bg-[#FFEAE8] text-[#A63737] text-xs font-semibold flex items-center gap-2 animate-in fade-in"
+          >
             <Trash2 className="w-4 h-4" />
-            <span>{account ? 'ลบข้อมูลในเบราว์เซอร์เรียบร้อยแล้ว' : 'ลบข้อมูลประวัติทั้งหมดออกจากเบราว์เซอร์นี้เรียบร้อยแล้ว'}</span>
+            <span>{purgeSuccess}</span>
           </div>
         )}
 
@@ -126,34 +168,43 @@ export default function ProfilePage() {
 
           {/* Display Name */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-text-primary block">
+            <label
+              htmlFor="display-name"
+              className="text-sm font-semibold text-text-primary block"
+            >
               ชื่อที่ใช้เรียกคุณ
             </label>
             <input
               type="text"
+              id="display-name"
+              maxLength={100}
               value={prefs.displayName}
               onChange={(e) => handleUpdate({ displayName: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-2xl bg-surface-container/40 border border-stone-200 text-xs sm:text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-4 py-2.5 rounded-2xl bg-surface-container/40 border border-stone-200 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
 
           {/* Default Focus Duration */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-text-primary block">
+            <p className="text-sm font-semibold text-text-primary">
               ระยะเวลาโฟกัสเริ่มต้น
-            </label>
+            </p>
             <div className="grid grid-cols-3 gap-2">
               {[15, 25, 50].map((mins) => (
                 <button
                   key={mins}
                   type="button"
+                  aria-pressed={prefs.defaultFocusMinutes === mins}
                   onClick={() => handleUpdate({ defaultFocusMinutes: mins })}
                   className={`py-2.5 rounded-2xl text-xs font-semibold transition-all ${
                     prefs.defaultFocusMinutes === mins
-                      ? 'bg-primary-container text-white shadow-sm'
-                      : 'bg-surface-container text-text-secondary hover:bg-surface-container-high'
+                      ? "bg-primary-container text-white shadow-sm"
+                      : "bg-surface-container text-text-secondary hover:bg-surface-container-high"
                   }`}
                 >
+                  {prefs.defaultFocusMinutes === mins && (
+                    <CheckCircle2 className="inline mr-1" size={14} />
+                  )}
                   {mins} นาที
                 </button>
               ))}
@@ -169,24 +220,29 @@ export default function ProfilePage() {
                 <VolumeX className="w-5 h-5 text-stone-400" />
               )}
               <div>
-                <p className="text-xs sm:text-sm font-semibold text-text-primary">
+                <p className="text-sm font-semibold text-text-primary">
                   เสียงกระดิ่งนุ่มนวล
                 </p>
-                <p className="text-[11px] text-text-secondary">
+                <p className="text-sm text-text-secondary">
                   ส่งเสียงระฆังเบา ๆ เมื่อจับเวลาครบกำหนด
                 </p>
               </div>
             </div>
             <button
               type="button"
-              onClick={() => handleUpdate({ soundEnabled: !prefs.soundEnabled })}
-              className={`w-12 h-7 rounded-full transition-colors relative p-0.5 ${
-                prefs.soundEnabled ? 'bg-primary-container' : 'bg-stone-300'
+              role="switch"
+              aria-label="เสียงแจ้งเตือน"
+              aria-checked={prefs.soundEnabled}
+              onClick={() =>
+                handleUpdate({ soundEnabled: !prefs.soundEnabled })
+              }
+              className={`w-12 h-11 shrink-0 rounded-full transition-colors relative p-0.5 ${
+                prefs.soundEnabled ? "bg-primary-container" : "bg-stone-300"
               }`}
             >
               <div
                 className={`w-6 h-6 rounded-full bg-white transition-transform ${
-                  prefs.soundEnabled ? 'translate-x-5' : 'translate-x-0'
+                  prefs.soundEnabled ? "translate-x-5" : "translate-x-0"
                 }`}
               />
             </button>
@@ -195,21 +251,33 @@ export default function ProfilePage() {
 
         {/* Account & Sync */}
         <div className="bg-surface-lowest rounded-3xl p-6 sm:p-8 shadow-card border border-stone-200/60 space-y-4">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
             <div>
               <h3 className="text-base font-bold text-primary font-display">
                 สถานะบัญชีผู้ใช้
               </h3>
-              <p className="text-xs text-text-secondary mt-0.5">
-                {account ? 'เช็กอินและเวลาโฟกัสของบัญชีบันทึกบนเซิร์ฟเวอร์ การตั้งค่าอุปกรณ์ยังบันทึกในเบราว์เซอร์นี้' : 'ขณะนี้คุณกำลังใช้งานในโหมดทั่วไป ข้อมูลจะถูกบันทึกเฉพาะในเครื่องนี้ หากต้องการเข้าถึงจากอุปกรณ์อื่น สามารถสร้างบัญชีได้ฟรี'}
+              <p className="text-sm text-text-secondary mt-0.5">
+                {account
+                  ? "เช็กอินและเวลาโฟกัสของบัญชีบันทึกบนเซิร์ฟเวอร์ การตั้งค่าอุปกรณ์ยังบันทึกในเบราว์เซอร์นี้"
+                  : "ขณะนี้คุณกำลังใช้งานในโหมดทั่วไป ข้อมูลจะถูกบันทึกเฉพาะในเครื่องนี้ หากต้องการเข้าถึงจากอุปกรณ์อื่น สามารถสร้างบัญชีได้ฟรี"}
               </p>
             </div>
-            {account ? <button type="button" onClick={() => clearAuthSession()} className="px-4 py-2 rounded-full bg-surface-container text-xs font-semibold text-primary whitespace-nowrap">ออกจากระบบ</button> : <Link
-              href="/login"
-              className="px-4 py-2 rounded-full bg-surface-container hover:bg-surface-container-high text-xs font-semibold text-primary transition-colors whitespace-nowrap"
-            >
-              เข้าสู่ระบบ / สมัครสมาชิก
-            </Link>}
+            {account ? (
+              <button
+                type="button"
+                onClick={() => clearAuthSession()}
+                className="px-4 py-2 rounded-full bg-surface-container text-xs font-semibold text-primary whitespace-nowrap"
+              >
+                ออกจากระบบ
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className="px-4 py-2 rounded-full bg-surface-container hover:bg-surface-container-high text-xs font-semibold text-primary transition-colors whitespace-nowrap"
+              >
+                เข้าสู่ระบบ / สมัครสมาชิก
+              </Link>
+            )}
           </div>
         </div>
 
@@ -217,10 +285,14 @@ export default function ProfilePage() {
         <div className="bg-surface-lowest rounded-3xl p-6 sm:p-8 shadow-card border border-stone-200/60 space-y-4">
           <div className="flex items-center gap-2 text-primary">
             <Shield className="w-5 h-5" />
-            <h3 className="text-base font-bold font-display">ความเป็นส่วนตัวและการจัดการข้อมูล</h3>
+            <h3 className="text-base font-bold font-display">
+              ความเป็นส่วนตัวและการจัดการข้อมูล
+            </h3>
           </div>
-          <p className="text-xs text-text-secondary leading-relaxed">
-            {account ? 'คุณสามารถดาวน์โหลดเช็กอินและเวลาโฟกัสของบัญชี หรือลบบัญชีพร้อมข้อมูลบนเซิร์ฟเวอร์ได้' : 'คุณสามารถดาวน์โหลดหรือลบข้อมูลที่บันทึกไว้ในเบราว์เซอร์นี้ได้ตลอดเวลา'}
+          <p className="text-sm text-text-secondary leading-relaxed">
+            {account
+              ? "คุณสามารถดาวน์โหลดเช็กอินและเวลาโฟกัสล่าสุดอย่างละ 100 รายการของบัญชี หรือลบบัญชีพร้อมข้อมูลบนเซิร์ฟเวอร์ได้"
+              : "คุณสามารถดาวน์โหลดหรือลบข้อมูลที่บันทึกไว้ในเบราว์เซอร์นี้ได้ตลอดเวลา"}
           </p>
 
           <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
@@ -230,7 +302,11 @@ export default function ProfilePage() {
               className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-surface-container hover:bg-surface-container-high text-text-primary text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
             >
               <Download className="w-4 h-4" />
-              <span>{account ? 'ส่งออกข้อมูลล่าสุด (JSON)' : 'ส่งออกข้อมูลของฉัน (JSON)'}</span>
+              <span>
+                {account
+                  ? "ส่งออกข้อมูลล่าสุด (JSON)"
+                  : "ส่งออกข้อมูลของฉัน (JSON)"}
+              </span>
             </button>
 
             <button
@@ -239,45 +315,46 @@ export default function ProfilePage() {
               className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-[#FFEAE8] hover:bg-[#FFD4D0] text-[#A63737] text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
-              <span>{account ? 'ลบบัญชีและข้อมูลทั้งหมด' : 'ลบข้อมูลทั้งหมด & รีเซ็ต'}</span>
+              <span>
+                {account
+                  ? "ลบบัญชีและข้อมูลทั้งหมด"
+                  : "ลบข้อมูลทั้งหมด & รีเซ็ต"}
+              </span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Confirm Purge Modal */}
-      {showPurgeModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface-lowest rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-hover border border-stone-200 text-center space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-[#FFEAE8] text-[#A63737] flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <h4 className="text-lg font-bold text-primary font-display">
-              {account ? 'ต้องการลบบัญชีและข้อมูลทั้งหมดหรือไม่?' : 'ต้องการลบข้อมูลทั้งหมดในเครื่องนี้หรือไม่?'}
-            </h4>
-            <p className="text-xs text-text-secondary leading-relaxed">
-              {account ? 'การกระทำนี้จะลบบัญชี ประวัติเช็กอิน และเวลาโฟกัสบนเซิร์ฟเวอร์อย่างถาวร รวมถึงข้อมูลในเบราว์เซอร์นี้' : 'การกระทำนี้จะลบประวัติการเช็กอินและเวลาโฟกัสสะสมออกจากเบราว์เซอร์นี้ถาวร และไม่สามารถกู้คืนได้'}
-            </p>
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowPurgeModal(false)}
-                className="flex-1 py-2.5 rounded-full bg-surface-container text-xs font-semibold text-text-primary hover:bg-surface-container-high"
-              >
-                ยกเลิก
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmPurge}
-                disabled={pending}
-                className="flex-1 py-2.5 rounded-full bg-[#A63737] text-white text-xs font-semibold hover:bg-red-800"
-              >
-                ยืนยันลบข้อมูลทั้งหมด
-              </button>
-            </div>
-          </div>
+      <Modal
+        open={showPurgeModal}
+        busy={pending}
+        onClose={() => setShowPurgeModal(false)}
+        title={
+          account ? "ลบบัญชีและข้อมูลทั้งหมด?" : "ลบข้อมูลในเบราว์เซอร์นี้?"
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          {account
+            ? "บัญชี ประวัติเช็กอิน และเวลาโฟกัสบนเซิร์ฟเวอร์ รวมถึงข้อมูลในเบราว์เซอร์นี้จะถูกลบถาวร และไม่สามารถกู้คืนได้"
+            : "ประวัติและการตั้งค่าในเบราว์เซอร์นี้จะถูกลบถาวร และไม่สามารถกู้คืนได้"}
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Button
+            variant="secondary"
+            disabled={pending}
+            onClick={() => setShowPurgeModal(false)}
+          >
+            เก็บข้อมูลไว้
+          </Button>
+          <Button
+            variant="danger"
+            loading={pending}
+            onClick={handleConfirmPurge}
+          >
+            ยืนยันลบถาวร
+          </Button>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

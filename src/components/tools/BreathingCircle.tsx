@@ -1,36 +1,40 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Wind } from 'lucide-react';
+import React from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { Wind } from "lucide-react";
 
 interface BreathingCircleProps {
-  phase: 'inhale' | 'hold' | 'exhale' | 'idle';
+  phase: "inhale" | "hold" | "exhale" | "rest" | "idle";
   phaseText: string;
   subText?: string;
-  size?: 'sm' | 'md' | 'lg';
+  duration?: number;
+  size?: "sm" | "md" | "lg";
 }
 
 export const BreathingCircle: React.FC<BreathingCircleProps> = ({
   phase,
   phaseText,
   subText,
-  size = 'md',
+  size = "md",
+  duration = 4,
 }) => {
+  const reducedMotion = useReducedMotion();
   const sizeMap = {
-    sm: { box: 120, outer: 'w-24 h-24', inner: 'w-16 h-16', icon: 'w-8 h-8' },
-    md: { box: 180, outer: 'w-36 h-36', inner: 'w-24 h-24', icon: 'w-12 h-12' },
-    lg: { box: 240, outer: 'w-48 h-48', inner: 'w-32 h-32', icon: 'w-16 h-16' },
+    sm: { box: 120, outer: "w-24 h-24", inner: "w-16 h-16", icon: "w-8 h-8" },
+    md: { box: 180, outer: "w-36 h-36", inner: "w-24 h-24", icon: "w-12 h-12" },
+    lg: { box: 240, outer: "w-48 h-48", inner: "w-32 h-32", icon: "w-16 h-16" },
   };
 
   // Target scales based on phase
   const getOuterScale = () => {
     switch (phase) {
-      case 'inhale':
+      case "inhale":
         return 1.28;
-      case 'hold':
+      case "hold":
         return 1.28;
-      case 'exhale':
+      case "rest":
+      case "exhale":
         return 0.88;
       default:
         return 1.0;
@@ -39,11 +43,12 @@ export const BreathingCircle: React.FC<BreathingCircleProps> = ({
 
   const getInnerScale = () => {
     switch (phase) {
-      case 'inhale':
+      case "inhale":
         return 1.15;
-      case 'hold':
+      case "hold":
         return 1.15;
-      case 'exhale':
+      case "rest":
+      case "exhale":
         return 0.85;
       default:
         return 1.0;
@@ -51,8 +56,8 @@ export const BreathingCircle: React.FC<BreathingCircleProps> = ({
   };
 
   const transitionConfig = {
-    duration: phase === 'inhale' ? 4 : phase === 'exhale' ? 4 : 2,
-    ease: 'easeInOut',
+    duration: reducedMotion ? 0 : duration,
+    ease: "easeInOut",
   };
 
   return (
@@ -64,8 +69,8 @@ export const BreathingCircle: React.FC<BreathingCircleProps> = ({
         {/* Outer Pulsing Glow */}
         <motion.div
           animate={{
-            scale: getOuterScale(),
-            opacity: phase === 'idle' ? 0.3 : 0.6,
+            scale: reducedMotion ? 1 : getOuterScale(),
+            opacity: reducedMotion || phase === "idle" ? 0.3 : 0.6,
           }}
           transition={transitionConfig}
           className={`absolute ${sizeMap[size].outer} rounded-full bg-secondary-container/60 blur-md`}
@@ -74,8 +79,8 @@ export const BreathingCircle: React.FC<BreathingCircleProps> = ({
         {/* Middle Sage Layer */}
         <motion.div
           animate={{
-            scale: getInnerScale(),
-            opacity: phase === 'idle' ? 0.5 : 0.85,
+            scale: reducedMotion ? 1 : getInnerScale(),
+            opacity: reducedMotion || phase === "idle" ? 0.5 : 0.85,
           }}
           transition={transitionConfig}
           className={`absolute ${sizeMap[size].inner} rounded-full bg-[#A8C7B5]/40 border border-primary/10`}
@@ -84,7 +89,13 @@ export const BreathingCircle: React.FC<BreathingCircleProps> = ({
         {/* Center Seed Icon */}
         <motion.div
           animate={{
-            scale: phase === 'inhale' ? 1.05 : phase === 'exhale' ? 0.95 : 1,
+            scale: reducedMotion
+              ? 1
+              : phase === "inhale"
+                ? 1.05
+                : phase === "exhale"
+                  ? 0.95
+                  : 1,
           }}
           transition={transitionConfig}
           className={`relative z-10 ${sizeMap[size].icon} rounded-full bg-primary-container text-white flex items-center justify-center shadow-md`}
@@ -96,18 +107,18 @@ export const BreathingCircle: React.FC<BreathingCircleProps> = ({
       {/* Real-time guidance text */}
       <motion.div
         key={phaseText}
-        initial={{ opacity: 0.6, y: 3 }}
+        initial={reducedMotion ? false : { opacity: 0.6, y: 3 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="space-y-1"
+        className="space-y-1 min-h-16"
+        aria-live="polite"
+        aria-atomic="true"
       >
         <p className="text-base sm:text-lg font-bold text-primary font-display">
           {phaseText}
         </p>
         {subText && (
-          <p className="text-xs text-text-secondary max-w-[220px]">
-            {subText}
-          </p>
+          <p className="text-sm text-text-secondary max-w-[220px]">{subText}</p>
         )}
       </motion.div>
     </div>

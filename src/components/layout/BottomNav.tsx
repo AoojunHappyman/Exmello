@@ -1,55 +1,33 @@
-'use client';
-
-import React from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Home, Timer, Wind, BookOpen, User } from 'lucide-react';
-
-export const BottomNav: React.FC = () => {
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Home, Smile, Timer, Sprout } from "lucide-react";
+export const BottomNav = () => {
   const pathname = usePathname();
-
-  const navItems = [
-    { label: 'หน้าแรก', href: '/', icon: Home },
-    { label: 'โฟกัส', href: '/focus', icon: Timer },
-    { label: 'หายใจ', href: '/breathing', icon: Wind },
-    { label: 'แหล่งข้อมูล', href: '/resources', icon: BookOpen },
-    { label: 'โปรไฟล์', href: '/profile', icon: User },
-  ];
-
   return (
     <nav
       aria-label="การนำทางบนมือถือ"
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface-lowest/95 backdrop-blur-lg border-t border-stone-200/80 px-2 py-1 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-[#E3E8E1] bg-white/95 px-3 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
     >
-      <div className="flex items-center justify-around max-w-md mx-auto h-16">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive =
-            item.href === '/'
-              ? pathname === '/'
-              : pathname.startsWith(item.href);
-
+      <div className="mx-auto grid h-[72px] max-w-lg grid-cols-4 gap-1">
+        {[
+          { label: "หน้าแรก", href: "/", icon: Home },
+          { label: "เช็กอิน", href: "/checkin", icon: Smile },
+          { label: "โฟกัส", href: "/focus", icon: Timer },
+          { label: "ของฉัน", href: "/dashboard", icon: Sprout },
+        ].map(({ label, href, icon: Icon }) => {
+          const active =
+            pathname === href ||
+            (href === "/checkin" && pathname === "/recommendation");
           return (
             <Link
-              key={item.label}
-              href={item.href}
-              aria-current={isActive ? 'page' : undefined}
-              className={`flex flex-col items-center justify-center min-w-[56px] min-h-[48px] px-2 rounded-2xl transition-all duration-200 ${
-                isActive
-                  ? 'text-primary font-semibold'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
+              key={href}
+              href={href}
+              aria-current={active ? "page" : undefined}
+              className={`my-2 flex flex-col items-center justify-center gap-1 rounded-2xl text-xs transition-colors ${active ? "bg-sage-100 font-semibold text-primary" : "text-text-muted hover:bg-sage-50"}`}
             >
-              <div
-                className={`w-10 h-7 flex items-center justify-center rounded-full transition-all ${
-                  isActive ? 'bg-secondary-container text-primary' : ''
-                }`}
-              >
-                <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
-              </div>
-              <span className="text-[11px] mt-0.5 tracking-tight font-sans">
-                {item.label}
-              </span>
+              <Icon size={21} strokeWidth={active ? 2 : 1.6} />
+              <span>{label}</span>
             </Link>
           );
         })}

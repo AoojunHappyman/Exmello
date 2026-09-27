@@ -1,138 +1,120 @@
-'use client';
-
-import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { Search, BookOpen } from 'lucide-react';
-import { getResources, readableApiError } from '@/lib/api';
-import { ResourceArticle } from '@/types';
-import { ResourceCard } from '@/components/cards/ResourceCard';
-
+"use client";
+import { useState } from "react";
+import { Search, X } from "lucide-react";
+import { ResourceCard } from "@/components/cards/ResourceCard";
+import { LoadingCards, StatePanel } from "@/components/ui/Feedback";
+import { useResources } from "@/lib/useResources";
 export default function ResourcesPage() {
-  const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [resources, setResources] = useState<ResourceArticle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    getResources().then(setResources).catch((cause) => setError(readableApiError(cause))).finally(() => setLoading(false));
-  }, []);
-
-  const categories = [
-    { id: 'all', label: 'ทั้งหมด' },
-    { id: 'study', label: 'เทคนิคการอ่าน' },
-    { id: 'stress', label: 'คลายเครียด' },
-    { id: 'sleep', label: 'การนอน & ความจำ' },
-    { id: 'lifestyle', label: 'วันสอบจริง' },
-  ];
-
-  const filteredArticles = resources.filter((article) => {
-    const matchesCategory =
-      activeCategory === 'all' || article.category === activeCategory;
-    const matchesSearch =
-      article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      article.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      article.badge.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
-
+  const [category, setCategory] = useState("all");
+  const [query, setQuery] = useState("");
+  const { articles, loading, error, retry } = useResources();
+  const filtered = articles.filter(
+    (item) =>
+      (category === "all" || item.category === category) &&
+      `${item.title} ${item.summary} ${item.badge}`
+        .toLowerCase()
+        .includes(query.trim().toLowerCase()),
+  );
   return (
-    <div className="max-w-[1240px] mx-auto px-4 md:px-8 py-10 space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary-container text-primary text-xs font-semibold mb-2">
-            <span>📚</span>
-            <span>แหล่งข้อมูลช่วยเหลือ</span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-primary font-display">
-            บทความและแนวทางดูแลใจช่วงสอบ
-          </h1>
-          <p className="text-xs sm:text-sm text-text-secondary max-w-xl mt-1">
-            เคล็ดลับการอ่านหนังสือ การพักผ่อน และการดูแลตัวเองช่วงสอบ จากมุมมองจิตวิทยาการศึกษา
-          </p>
-        </div>
-
-        {/* Search Bar */}
-        <div className="relative w-full md:w-72">
-          <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ค้นหาบทความหรือหัวข้อ..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-full bg-surface-lowest border border-stone-200/80 text-xs text-text-primary placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
-          />
-        </div>
+    <div className="page-shell">
+      <div className="mb-9 max-w-2xl">
+        <p className="eyebrow">THE EXMELLO JOURNAL</p>
+        <h1 className="page-title mt-3">
+          ความเข้าใจเล็ก ๆ<br />
+          ที่ช่วยให้ช่วงสอบเบาลง
+        </h1>
+        <p className="mt-4 text-base text-text-secondary">
+          บทอ่านสั้น ๆ เรื่องการเรียน ความรู้สึก และการพักผ่อน
+          เลือกสิ่งที่ตรงกับวันนี้ของคุณ
+        </p>
       </div>
-
-      {/* Category Tabs */}
-      <div className="flex flex-wrap gap-2 border-b border-stone-200/60 pb-4">
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            onClick={() => setActiveCategory(cat.id)}
-            className={`px-4 py-2 rounded-full text-xs font-semibold transition-all ${
-              activeCategory === cat.id
-                ? 'bg-primary-container text-white shadow-sm'
-                : 'bg-surface-lowest hover:bg-surface-container text-text-secondary border border-stone-200/60'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Articles Grid */}
-      {loading ? <p className="text-sm text-text-secondary">กำลังโหลดบทความ...</p> : error ? <p role="alert" className="text-sm text-red-700">{error}</p> : filteredArticles.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {filteredArticles.map((article) => (
-            <ResourceCard key={article.id} article={article} />
+      <div className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+        <div
+          role="group"
+          aria-label="หมวดหมู่บทความ"
+          className="flex flex-wrap gap-2"
+        >
+          {[
+            { id: "all", label: "ทั้งหมด" },
+            { id: "study", label: "การเรียน" },
+            { id: "stress", label: "ความเครียด" },
+            { id: "sleep", label: "การนอน" },
+            { id: "lifestyle", label: "วันสอบ" },
+          ].map((item) => (
+            <button
+              key={item.id}
+              aria-pressed={category === item.id}
+              onClick={() => setCategory(item.id)}
+              className={`rounded-full border px-4 py-2 text-sm ${category === item.id ? "border-primary-container bg-primary-container text-white" : "border-[#DCE3DB] bg-white text-secondary hover:bg-sage-50"}`}
+            >
+              {item.label}
+            </button>
           ))}
         </div>
-      ) : (
-        <div className="bg-surface-lowest rounded-3xl p-12 text-center max-w-md mx-auto space-y-3 border border-stone-200/60">
-          <BookOpen className="w-10 h-10 text-stone-300 mx-auto" />
-          <h3 className="text-base font-bold text-primary font-display">
-            ไม่พบบทความที่ตรงกับ &quot;{searchQuery}&quot;
-          </h3>
-          <p className="text-xs text-text-secondary">
-            ลองค้นหาด้วยคำอื่น เช่น &quot;นอน&quot;, &quot;กังวล&quot;, หรือ &quot;โฟกัส&quot;
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setSearchQuery('');
-              setActiveCategory('all');
-            }}
-            className="text-xs text-secondary font-semibold hover:underline pt-2"
-          >
-            ล้างตัวกรองทั้งหมด
-          </button>
+        <div className="relative w-full lg:w-72">
+          <Search
+            aria-hidden="true"
+            size={17}
+            className="absolute left-4 top-4 text-secondary"
+          />
+          <input
+            aria-label="ค้นหาบทความ"
+            placeholder="ค้นหาสิ่งที่อยากรู้…"
+            className="field !pl-11 !pr-11"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              aria-label="ล้างคำค้นหา"
+              className="absolute right-1 top-1 flex h-11 w-10 items-center justify-center text-secondary"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
-      )}
-
-      {/* Bottom Supportive Callout */}
-      <div className="bg-secondary-container/30 rounded-3xl p-6 sm:p-8 border border-primary/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">🌱</span>
-          <div>
-            <h4 className="text-sm sm:text-base font-bold text-primary font-display">
-              อ่านจบแล้วใช่ไหม? มาลองลงมือทำกันเถอะ
-            </h4>
-            <p className="text-xs text-text-secondary">
-              วิธีที่ดีที่สุดในการช่วยให้สมองซึมซับข้อมูลคือการพักหายใจสั้น ๆ 3 นาที
-            </p>
-          </div>
-        </div>
-        <Link
-          href="/breathing"
-          className="px-6 py-2.5 rounded-full bg-primary-container text-white text-xs font-semibold hover:bg-primary transition-all whitespace-nowrap shadow-sm"
-        >
-          ลองฝึกหายใจ 3 นาที →
-        </Link>
       </div>
+      {loading ? (
+        <LoadingCards count={6} label="กำลังโหลดบทความ" />
+      ) : error ? (
+        <StatePanel
+          error
+          title="บทความยังมาไม่ถึง"
+          description={error}
+          onRetry={retry}
+        />
+      ) : filtered.length ? (
+        <>
+          <p role="status" className="mb-4 text-sm text-text-muted">
+            {filtered.length} บทความสำหรับคุณ
+          </p>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((article) => (
+              <ResourceCard key={article.id} article={article} />
+            ))}
+          </div>
+        </>
+      ) : (
+        <StatePanel
+          title={
+            articles.length ? "ลองค้นหาอีกมุมหนึ่งไหม?" : "บทความใหม่กำลังตามมา"
+          }
+          description={
+            articles.length
+              ? `ยังไม่มีบทความตรงกับ “${query || "หมวดนี้"}” ลองคำสั้น ๆ เช่น การนอน หรือโฟกัส`
+              : "ระหว่างนี้ลองให้เวลาตัวเองกับเช็กอินสั้น ๆ"
+          }
+          onRetry={
+            articles.length
+              ? () => {
+                  setQuery("");
+                  setCategory("all");
+                }
+              : retry
+          }
+        />
+      )}
     </div>
   );
 }

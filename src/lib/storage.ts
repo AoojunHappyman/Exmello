@@ -1,30 +1,38 @@
-import { CheckInRecord, FocusSessionRecord, UserPreferences, MoodType, ConcernType, NeedType } from '@/types';
+import {
+  CheckInRecord,
+  FocusSessionRecord,
+  UserPreferences,
+  MoodType,
+  ConcernType,
+  NeedType,
+} from "@/types";
 
 const STORAGE_KEYS = {
-  CHECKINS: 'exmello_checkins_v1',
-  SESSIONS: 'exmello_sessions_v1',
-  PREFERENCES: 'exmello_preferences_v1',
-  SAVED_ARTICLES: 'exmello_saved_articles_v1',
-  LAST_CHECKIN: 'exmello_last_checkin_v1',
+  ACTIVE_FOCUS: "exmello_active_focus_v1",
+  CHECKINS: "exmello_checkins_v1",
+  SESSIONS: "exmello_sessions_v1",
+  PREFERENCES: "exmello_preferences_v1",
+  SAVED_ARTICLES: "exmello_saved_articles_v1",
+  LAST_CHECKIN: "exmello_last_checkin_v1",
 };
 
-const DEFAULT_PREFERENCES: UserPreferences = {
-  displayName: 'เพื่อนนักศึกษา',
+export const DEFAULT_PREFERENCES: UserPreferences = {
+  displayName: "เพื่อนนักศึกษา",
   defaultFocusMinutes: 25,
   soundEnabled: true,
   breathingPacingSeconds: 4,
   isGuest: true,
-  theme: 'light',
+  theme: "light",
 };
 
-type StoredCheckInRecord = Omit<CheckInRecord, 'concerns'> & {
+type StoredCheckInRecord = Omit<CheckInRecord, "concerns"> & {
   concerns?: ConcernType[];
   concern?: ConcernType;
 };
 
 // Safe window check for Next.js SSR
 function isClient(): boolean {
-  return typeof window !== 'undefined';
+  return typeof window !== "undefined";
 }
 
 function normalizeCheckIn(record: StoredCheckInRecord): CheckInRecord | null {
@@ -40,7 +48,11 @@ function normalizeCheckIn(record: StoredCheckInRecord): CheckInRecord | null {
   return { ...rest, concerns };
 }
 
-export function saveCheckIn(mood: MoodType, concerns: ConcernType[], need?: NeedType): CheckInRecord {
+export function saveCheckIn(
+  mood: MoodType,
+  concerns: ConcernType[],
+  need?: NeedType,
+): CheckInRecord {
   const record: CheckInRecord = {
     id: `chk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     timestamp: Date.now(),
@@ -57,7 +69,7 @@ export function saveCheckIn(mood: MoodType, concerns: ConcernType[], need?: Need
     localStorage.setItem(STORAGE_KEYS.CHECKINS, JSON.stringify(updated));
     localStorage.setItem(STORAGE_KEYS.LAST_CHECKIN, JSON.stringify(record));
   } catch (e) {
-    console.error('Error saving checkin to localStorage:', e);
+    console.error("Error saving checkin to localStorage:", e);
   }
 
   return record;
@@ -67,7 +79,9 @@ export function getLastCheckIn(): CheckInRecord | null {
   if (!isClient()) return null;
   try {
     const data = localStorage.getItem(STORAGE_KEYS.LAST_CHECKIN);
-    return data ? normalizeCheckIn(JSON.parse(data) as StoredCheckInRecord) : null;
+    return data
+      ? normalizeCheckIn(JSON.parse(data) as StoredCheckInRecord)
+      : null;
   } catch {
     return null;
   }
@@ -89,12 +103,15 @@ export function getCheckInHistory(): CheckInRecord[] {
 
 export function saveActivitySession(
   durationMinutes: number,
-  type: 'focus' | 'breathing' | 'reset',
+  type: "focus" | "breathing" | "reset",
   completed: boolean = true,
-  label?: string
+  label?: string,
+  stableId?: string,
 ): FocusSessionRecord {
   const session: FocusSessionRecord = {
-    id: `sess_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    id:
+      stableId ||
+      `sess_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     timestamp: Date.now(),
     durationMinutes,
     completed,
@@ -106,10 +123,12 @@ export function saveActivitySession(
 
   try {
     const existing = getActivitySessions();
+    if (existing.some((item) => item.id === session.id))
+      return existing.find((item) => item.id === session.id)!;
     const updated = [session, ...existing].slice(0, 100);
     localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(updated));
   } catch (e) {
-    console.error('Error saving activity session:', e);
+    console.error("Error saving activity session:", e);
   }
 
   return session;
@@ -119,38 +138,10 @@ export function getActivitySessions(): FocusSessionRecord[] {
   if (!isClient()) return [];
   try {
     const data = localStorage.getItem(STORAGE_KEYS.SESSIONS);
-    if (!data) {
-      // Seed default friendly demo activity if first time
-      const defaults: FocusSessionRecord[] = [
-        {
-          id: 'seed-1',
-          timestamp: Date.now() - 3600 * 1000 * 2,
-          durationMinutes: 25,
-          completed: true,
-          type: 'focus',
-          label: 'Pomodoro โฟกัสสบาย ๆ',
-        },
-        {
-          id: 'seed-2',
-          timestamp: Date.now() - 3600 * 1000 * 5,
-          durationMinutes: 3,
-          completed: true,
-          type: 'breathing',
-          label: 'ฝึกหายใจแบบกล่อง (Box Breathing)',
-        },
-        {
-          id: 'seed-3',
-          timestamp: Date.now() - 3600 * 1000 * 24,
-          durationMinutes: 1,
-          completed: true,
-          type: 'reset',
-          label: 'พักสายตา 60 วินาที',
-        },
-      ];
-      localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(defaults));
-      return defaults;
-    }
-    return JSON.parse(data);
+    if (!data) return [];
+    return (JSON.parse(data) as FocusSessionRecord[]).filter(
+      (item) => !item.id.startsWith("seed-"),
+    );
   } catch {
     return [];
   }
@@ -167,13 +158,17 @@ export function getUserPreferences(): UserPreferences {
   if (!isClient()) return DEFAULT_PREFERENCES;
   try {
     const data = localStorage.getItem(STORAGE_KEYS.PREFERENCES);
-    return data ? { ...DEFAULT_PREFERENCES, ...JSON.parse(data) } : DEFAULT_PREFERENCES;
+    return data
+      ? { ...DEFAULT_PREFERENCES, ...JSON.parse(data) }
+      : DEFAULT_PREFERENCES;
   } catch {
     return DEFAULT_PREFERENCES;
   }
 }
 
-export function updateUserPreferences(updates: Partial<UserPreferences>): UserPreferences {
+export function updateUserPreferences(
+  updates: Partial<UserPreferences>,
+): UserPreferences {
   if (!isClient()) return { ...DEFAULT_PREFERENCES, ...updates };
   try {
     const current = getUserPreferences();
@@ -190,6 +185,6 @@ export function purgeAllData(): void {
   try {
     Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
   } catch (e) {
-    console.error('Error purging data:', e);
+    console.error("Error purging data:", e);
   }
 }
